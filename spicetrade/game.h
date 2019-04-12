@@ -1,6 +1,7 @@
 #include "platform_conio.h"
 #include "list.h"
 #include "tradecard.h"
+#include "objective.h"
 
 // 5 objective cards. +3 with gold token. +1 with silver
 // 6 market cards
