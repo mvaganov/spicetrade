@@ -238,8 +238,13 @@ struct MemManager{
 				do{
 					last = block;
 					if(block->signature != MEM_LEAK_DEBUG){
-						printf("\n%s\n\nintegrity failure at page %d, header %d (%d/%d)\n\n\n", failMessage,
-							pages, usedSectors+freeSectors, ((ptrdiff_t)block)-firstHeaderLoc, ((ptrdiff_t)endOfThisPage)-firstHeaderLoc);
+						const char * errMsg;
+#ifdef ENVIRONMENT32
+						errMsg = "\n%s\n\nintegrity failure at page %d, header %d (%d/%d)\n\n\n";
+#else
+						errMsg = "\n%s\n\nintegrity failure at page %lu, header %lu (%lu/%lu)\n\n\n";
+#endif
+						printf(errMsg, failMessage, pages, usedSectors+freeSectors, ((ptrdiff_t)block)-firstHeaderLoc, ((ptrdiff_t)endOfThisPage)-firstHeaderLoc);
 						// TODO memviewer right here...
 //						printMem();
 //						_getch();
