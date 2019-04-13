@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include "platform_conio.h"
 #include "game.h"
+#include "rbtree.h"
+#include <string>
 
 int main(int argc, const char ** argv){
     VList<const char*> l1;
+    std::string a = "abc", b = "def";
     for(int i = 0; i < argc; ++i){
         l1.Add(argv[i]);
     }
@@ -48,7 +51,7 @@ int main(int argc, const char ** argv){
         Objective("YRGGGB",	18),
         Objective("YRGBBB",	20)
     };
-    const TradeCard cards[] = {
+    const TradeCard tradeList[] = {
         TradeCard("", "YY"),
         TradeCard("",	"YY"),
         TradeCard("..", "++"),
@@ -96,6 +99,16 @@ int main(int argc, const char ** argv){
         TradeCard("RR",	"GG"),
         TradeCard("B",	"GG"),
     };
-
+    int len_tradeList = sizeof(tradeList)/sizeof(tradeList[0]);
+    RBTree<std::string, std::string> trades;
+    for(int i = 0; i < len_tradeList; ++i) {
+        trades.Set(tradeList[i].from, tradeList[i].to);
+    }
+    // printf("%d possible trades\n", trades.Count());
+    // RBTree<std::string, std::string>::KVP * kvp = new RBTree<std::string, std::string>::KVP[len_tradeList];
+    // for(int i = 0; i < len_tradeList; ++i) {
+    //     printf("%s -> %s\n", kvp[i].key.c_str(), kvp[i].value.c_str());
+    // }
+    // delete [] kvp;
     return 0;
 }
