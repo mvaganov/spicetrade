@@ -1,114 +1,165 @@
 #include <stdio.h>
 #include "platform_conio.h"
 #include "game.h"
-#include "rbtree.h"
+#include "dictionary.h"
 #include <string>
+#include "cli.h"
+#include "platform_random.h"
+
+void print(std::string str) { CLI::printf("%s", str.c_str()); }
+void print(const char * str) { CLI::printf("%s", str); }
+
+Dictionary<char,const ResourceType*> resourceLookup;
+
+char ColorOfRes(char icon) {
+    const ResourceType * r = resourceLookup.Get(icon);
+    return (r == NULL)?CLI::COLOR::LIGHT_GRAY:r->color;
+}
+
+void print(const PlayAction * a) {
+    int ofcolor = CLI::getFcolor(), obcolor = CLI::getBcolor();
+    int bg = CLI::COLOR::DARK_GRAY;
+    CLI::setColor(CLI::COLOR::LIGHT_GRAY, bg);
+
+    const int width = 5;
+    std::string str = a->input;
+    int leadSpace = width-str.length();
+    for(int i = 0; i < leadSpace; ++i) { CLI::putchar(' '); }
+    for(int i = 0; i < str.length(); ++i) {
+        CLI::setColor(ColorOfRes(str[i]),bg);
+        CLI::putchar(str[i]);
+    }
+    CLI::setColor(CLI::COLOR::LIGHT_GRAY, bg);
+    CLI::putchar('>');
+    str = a->output;
+    leadSpace = width-str.length();
+    for(int i = 0; i < str.length(); ++i) {
+        CLI::setColor(ColorOfRes(str[i]),bg);
+        CLI::putchar(str[i]);
+    }
+    CLI::setColor(CLI::COLOR::LIGHT_GRAY, bg);
+    for(int i = 0; i < leadSpace; ++i) { CLI::putchar(' '); }
+    CLI::setColor(ofcolor, obcolor);
+}
 
 int main(int argc, const char ** argv){
-    VList<const char*> l1;
-    std::string a = "abc", b = "def";
-    for(int i = 0; i < argc; ++i){
-        l1.Add(argv[i]);
+    for(int i = 0; i < argc; ++i) { printf("[%d] %s\n", i, argv[i]); }
+ 
+    for(int i = 0; i < g_len_resources; ++i) {
+        resourceLookup.Set(g_resources[i].icon, &(g_resources[i]));
     }
-    for(int i = 0; i < l1.Count(); ++i){
-        printf("[%d] %s\n", i, l1[i]);
+
+    Dictionary<std::string, const PlayAction*> actionDeck;
+    VList<const PlayAction*> play_deck;
+    for(int i = 0; i < g_len_play_deck; ++i) {
+        actionDeck.Set(g_play_deck[i].input, &(g_play_deck[i]));
+        play_deck.Add(&(g_play_deck[i]));
     }
-    const Objective objective[] = {
-        Objective("YYRR",	6),
-        Objective("YYYRR",	7),
-        Objective("RRRR",	8),
-        Objective("YYGG",	8),
-        Objective("YYRRR",	8),
-        Objective("YYYGG",	9),
-        Objective("RRGG",	10),
-        Objective("RRRRR",	10),
-        Objective("YYBB",	10),
-        Objective("YYGGG",	11),
-        Objective("YYYBB",	11),
-        Objective("GGGG",	12),
-        Objective("RRBB",	12),
-        Objective("RRRGG",	12),
-        Objective("RRGGG",	13),
-        Objective("GGBB",	14),
-        Objective("RRRBB",	14),
-        Objective("YYBBB",	14),
-        Objective("GGGGG",	15),
-        Objective("BBBB",	16),
-        Objective("RRBBB",	16),
-        Objective("GGGBB",	17),
-        Objective("GGBBB",	18),
-        Objective("BBBBB",	20),
-        Objective("YYRB",	9),
-        Objective("RRGB",	12),
-        Objective("YGGB",	12),
-        Objective("YYRRGG",	13),
-        Objective("YYRRBB",	15),
-        Objective("YYGGBB",	17),
-        Objective("RRGGBB",	19),
-        Objective("YRGB",	12),
-        Objective("YYYRGB",	14),
-        Objective("YRRRGB",	16),
-        Objective("YRGGGB",	18),
-        Objective("YRGBBB",	20)
-    };
-    const TradeCard tradeList[] = {
-        TradeCard("", "YY"),
-        TradeCard("",	"YY"),
-        TradeCard("..", "++"),
-        TradeCard("YYY",	"B"),
-        TradeCard("R",	"YYY"),
-        TradeCard("",	"YR"),
-        TradeCard("",	"G"),
-        TradeCard("",	"YYY"),
-        TradeCard("...", "+++"),
-        TradeCard("GG",	"RRRYY"),
-        TradeCard("GG",	"BRYY"),
-        TradeCard("B",	"GYYY"),
-        TradeCard("RR",	"GYYY"),
-        TradeCard("RRR",	"GGYY"),
-        TradeCard("B",	"RRYY"),
-        TradeCard("YYYY",	"GG"),
-        TradeCard("",	"RYY"),
-        TradeCard("",	"YYYY"),
-        TradeCard("",	"B"),
-        TradeCard("",	"RR"),
-        TradeCard("",	"YG"),
-        TradeCard("YY",	"G"),
-        TradeCard("RY",	"B"),
-        TradeCard("G",	"RR"),
-        TradeCard("RR",	"BYY"),
-        TradeCard("YYY",	"RG"),
-        TradeCard("GG",	"BRR"),
-        TradeCard("RRR",	"BGY"),
-        TradeCard("B",	"RRR"),
-        TradeCard("RRR",	"BB"),
-        TradeCard("B",	"GRY"),
-        TradeCard("G",	"RRY"),
-        TradeCard("G",	"RYYYY"),
-        TradeCard("YYYYY",	"BB"),
-        TradeCard("YYYY",	"GB"),
-        TradeCard("BB",	"GGRRR"),
-        TradeCard("BB",	"GGGRY"),
-        TradeCard("YYYYY",	"GGG"),
-        TradeCard("GYY",	"BB"),
-        TradeCard("GGG",	"BBB"),
-        TradeCard("RRR",	"GGG"),
-        TradeCard("YYY",	"RRR"),
-        TradeCard("YY",	"RR"),
-        TradeCard("GG",	"BB"),
-        TradeCard("RR",	"GG"),
-        TradeCard("B",	"GG"),
-    };
-    int len_tradeList = sizeof(tradeList)/sizeof(tradeList[0]);
-    RBTree<std::string, std::string> trades;
-    for(int i = 0; i < len_tradeList; ++i) {
-        trades.Set(tradeList[i].from, tradeList[i].to);
-    }
-    // printf("%d possible trades\n", trades.Count());
-    // RBTree<std::string, std::string>::KVP * kvp = new RBTree<std::string, std::string>::KVP[len_tradeList];
-    // for(int i = 0; i < len_tradeList; ++i) {
-    //     printf("%s -> %s\n", kvp[i].key.c_str(), kvp[i].value.c_str());
+
+
+    printf("%d possible actions\n", actionDeck.Count());
+    //VList<Dictionary<std::string, const PlayAction*>::KVP> kvp(g_len_play_deck);
+    //kvp.SetCount(g_len_play_deck);
+    //actionDeck.ToArray(kvp.GetData());
+    // for(int i = 0; i < g_len_playList; ++i) {
+    //     const PlayAction * v = kvp[i].value;
+    //     //printf("%s>%s : \"%s\"\n", v->input, v->output, v->name);
+    //     printf("%s\n", v->ToString(10).c_str());
     // }
-    // delete [] kvp;
+
+    platform_shuffle(play_deck.GetData(), 0, play_deck.Count());
+    VList<const PlayAction*> hand;
+    for(int i = 0; i < g_len_playstart; ++i) {
+        hand.Add(&(g_playstart[i]));
+    }
+    for(int i = 0; i < 3; ++i) {
+        hand.Add(play_deck.PopLast());
+    }
+
+    CLI::init();
+    CLI::setSize(CLI::getWidth(), 25);
+    CLI::fillScreen(' ');
+    CLI::move(0,0);
+    CLI::printf("Hello World!");
+    int x = 10, y = 3;
+    CLI::move(y, x);
+    CLI::printf("Mr. V");
+    int currentRow = 0;
+    Dictionary<int,int> selectedMark;
+    VList<int> selected;
+    bool running = true;
+    while(running) {
+        // draw
+        for(int i = 0; i < hand.Count(); ++i) {
+            CLI::move(y+1+i, x);
+            if(i == currentRow) {
+                print(">");
+            } else {
+                print(" ");
+            }
+            bool isSelected = selectedMark.GetPtr(i) != NULL;
+            if(isSelected) { print(" "); }
+            print(hand[i]);
+            if(isSelected) {
+                int selectedIndex = selected.IndexOf(i);
+                CLI::printf("%2d", selectedIndex);
+            } else { print("   "); }
+        } 
+        // input
+        int userInput = CLI::getch();
+        CLI::printf("%d\n",userInput);
+        // update
+        switch(userInput) {
+        case 'w':
+            currentRow--;
+            if(currentRow < 0){currentRow = 0;}
+            break;
+        case 's':
+            currentRow++;
+            if(currentRow >= hand.Count()){currentRow = hand.Count()-1;}
+            break;
+        case 'd': {
+            int* isSelected = selectedMark.GetPtr(currentRow);
+            if(isSelected == NULL) {
+                selected.Add(currentRow);
+                selectedMark.Set(currentRow, 1);
+            }
+        }
+            break;
+        case 'a': {
+            int* isSelected = selectedMark.GetPtr(currentRow);
+            if(isSelected != NULL) {
+                int sindex = selected.IndexOf(currentRow);
+                selected.RemoveAt(sindex);
+                selectedMark.Remove(currentRow);
+            }
+        }
+            break;
+        case 'q':
+            running = false;
+            break;
+        case '\n': case '\r':
+            if(selected.Count() > 0 && currentRow >= 0 && currentRow < hand.Count()) {
+                // remove the selected from the hand into a moving list, ordered by selected
+                VList<const PlayAction*> reordered;
+                for(int i = 0; i < selected.Count(); ++i) {
+                    reordered.Add(hand[selected[i]]);
+                }
+                selected.Sort();
+                for(int i = selected.Count()-1; i >= 0; --i) {
+                    hand.RemoveAt(selected[i]);
+                    if(selected[i] < currentRow) currentRow--;
+                }
+                // clear selected
+                selected.Clear();
+                selectedMark.Clear();
+                // insert element into the list at the given index
+                hand.Insert(currentRow, reordered.GetData(), reordered.Count());
+                reordered.Clear();
+            }
+        }
+    }
+    CLI::release();
+
     return 0;
 }

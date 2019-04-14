@@ -1,6 +1,9 @@
 CPP_FILES = \
 spicetrade/main.cpp \
-spicetrade/mem.cpp
+spicetrade/mem.cpp \
+spicetrade/cli.cpp \
+spicetrade/cards.cpp \
+spicetrade/rb_tree.c
 
 OUTPUT = spicetrade.exe
 

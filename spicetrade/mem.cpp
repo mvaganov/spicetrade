@@ -30,6 +30,17 @@ struct MemPage;
 #define MEM_DEBUG_INFRASTRUCTURE	//	printf("[g_rules: 0x%08x]%s:%d\n", g_rules, "mem", __LINE__);
 
 
+void* operator new(size_t num_bytes) __NEWTHROW
+{
+	// if a memory leak message brought you here, try replacing your 'new' operators with NEWMEM(type)
+	return operator new(num_bytes, __FILE__, __LINE__);
+}
+void* operator new[](size_t num_bytes) __NEWTHROW
+{
+	// if a memory leak message brought you here, try replacing your 'new' operators with NEWMEM_ARR(type, size)
+	return operator new(num_bytes, __FILE__, __LINE__);
+}
+
 /** a memory block, which is managed by a memory page */
 class MemBlock{
 	/** this is a free block, it can be given out to callers who ask for memory */
@@ -676,15 +687,6 @@ MEM_DEBUG_INFRASTRUCTURE
 	void * resultMemory = memory.allocate(num_bytes, filename, line);
 MEM_DEBUG_INFRASTRUCTURE
 	return resultMemory;
-}
-
-void* operator new(size_t num_bytes) __NEWTHROW
-{
-	return operator new(num_bytes, __FILE__, __LINE__);
-}
-void* operator new[](size_t num_bytes) __NEWTHROW
-{
-	return operator new(num_bytes, __FILE__, __LINE__);
 }
 
 void* operator new[]( size_t num_bytes, const char *filename, int line) __NEWTHROW

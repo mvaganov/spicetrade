@@ -1,7 +1,6 @@
 #include "platform_conio.h"
 #include "list.h"
-#include "tradecard.h"
-#include "objective.h"
+#include "cards.h"
 
 // 5 objective cards. +3 with gold token. +1 with silver
 // 6 market cards
@@ -13,6 +12,7 @@
 //   - if the player wants the first card in the market, they get it (and any resources on it)
 //   - if the player wants a later card, they put a resource on each card on the way there. UI to select which resource is placed on the market card
 // * rest - pull cards back into your hand to be played again
+// * purchase an objective with resources
 // scoring: once the 6th objective card is purchased, finish that round, then score. every non-yellow cube is +1 point. objective card points are added together.
 
 class Game
