@@ -895,7 +895,7 @@ void CLI::setColor(int foreground, int background)
 void CLI::sleep(int a_ms)
 {
 	static timeval endTime, startTime;
-	static __time_t seconds, useconds, ms;
+	static time_t seconds, useconds, ms;
 	gettimeofday(&startTime, NULL);
 	ms = 0;
 	while(ms < a_ms)
@@ -911,7 +911,7 @@ void CLI::sleep(int a_ms)
 long long CLI::upTimeMS()
 {
 	static timeval now;
-	static __time_t seconds, useconds, ms;
+	static time_t seconds, useconds, ms;
 	gettimeofday(&now, NULL);
 	seconds  = now.tv_sec  - g_startTime.tv_sec;
 	useconds = now.tv_usec - g_startTime.tv_usec;
