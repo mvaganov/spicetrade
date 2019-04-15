@@ -1,4 +1,6 @@
+#pragma once
 #include "mem.h"
+#include "list.h"
 #include <stdio.h>
 
 template<typename KTYPE, typename VTYPE>
@@ -6,25 +8,49 @@ class RBTree {
 public:
 	#define LEAF NULL
 	#define assert(condition)	if(!(condition)){ printf("failed condition at %d\n", __LINE__); int i=0;i=1/i;}
-	static const bool BLACK = 0;
-	static const bool RED = 1;
+	static const char BLACK = 0;
+	static const char RED = 1;
 	struct node {
 		KTYPE key;
 		VTYPE value;
-		bool color;
+		char color;
 		node *left, *right, *parent;
 		node():left(LEAF),right(LEAF),parent(NULL),color(BLACK) {}
 		node(KTYPE key, VTYPE value):key(key),value(value),color(BLACK),left(LEAF),right(LEAF),parent(NULL){}
 	};
-	RBTree():root(0),count(0) {}
+	RBTree():root(0),count(0),nodes(8) {}
+	PageList<node> nodes; // create nodes in pages, to reduce per-node overhead
+	VList<node*> deleted;
+	
+private:
+	node* CreateNode(const KTYPE key, const VTYPE & value) {
+		if(deleted.Count() > 0) {
+			node* n = deleted.PopLast();
+			n->key = key;
+			n->value = value;
+			return n;
+		}
+		return nodes.GetAdd(node(key,value));//NEWMEM(node(key,value));
+	}
+public:
 	void Add(const KTYPE key, const VTYPE & value) {
-		node * n = NEWMEM(node(key,value));
+		node * n = CreateNode(key,value);
 		if(root == NULL) {
 			root = n;
 		} else {
-			insertBasic(root, n);
+			root = insert(root, n);
 		}
 		count++;
+	}
+	void Remove(const KTYPE key) {
+		node * found = find(root, key);
+		if(found != NULL) {
+			printf("found one to delete\n");
+			found = delete_one_child(found);
+			printf("deleted\n");
+			deleted.Add(found);
+			printf("marked\n");
+		}
 	}
 	void Set(const KTYPE key, const VTYPE & value) {
 		node * found = find(root, key);
@@ -34,9 +60,15 @@ public:
 			Add(key, value);
 		}
 	}
+	/** this works if KTYPE is a pointer */
 	VTYPE Get(const KTYPE & key) const {
 		node * found = find(root, key);
 		return (found != NULL) ? found->value : NULL;
+	}
+	/** this works if KTYPE is not a pointer */
+	VTYPE* GetPtr(const KTYPE & key) const {
+		node * found = find(root, key);
+		return (found != NULL) ? &(found->value) : NULL;
 	}
 	struct KVP {
 		KTYPE key; VTYPE value;
@@ -49,12 +81,8 @@ public:
 	}
 	int Count() const { return count; }
 	~RBTree() {
-		if(root != NULL) {
-			printf("releasing!\n");
-			release(root);
-			DELMEM(root);
-			root = NULL;
-		}
+		// if(root != NULL) { release(root); DELMEM(root); root = NULL; }
+		nodes.Release();
 		count = 0;
 	}
 private:
@@ -71,38 +99,24 @@ private:
 		}
 	}
 	struct node* find(struct node* n, const KTYPE key) const {
-		while(n != LEAF) {
-			if(n->key == key) {
-				return n;
-			}
-			if(key < n->key) {
-				if(n->left != NULL) {
-					n = n->left; //return find(n->left, key);
-				}
-				else break;
-			} 
-			if(key > n->key) {
-				if(n->right != NULL) {
-					n = n->right; //return find(n->right, key);
-				}
-				else break;
-			}
-		}
-		return NULL;
+		node* cursor;
+		for (cursor = n;
+			cursor != LEAF && cursor->key != key; 
+			cursor = (cursor->key > key ? cursor->left : cursor->right));
+		return cursor;
 	}
-	void release(struct node* n) {
-		printf("release\n");
-		if(n->left != LEAF) {
-			release(n->left);
-			delete n->left;
-			n->left = LEAF;
-		}
-		if(n->right != LEAF) {
-			release(n->right);
-			delete n->right;
-			n->right = LEAF;
-		}
-	}
+	// void release(struct node* n) {
+	// 	if(n->left != LEAF) {
+	// 		release(n->left);
+	// 		DELMEM(n->left);
+	// 		n->left = LEAF;
+	// 	}
+	// 	if(n->right != LEAF) {
+	// 		release(n->right);
+	// 		DELMEM(n->right);
+	// 		n->right = LEAF;
+	// 	}
+	// }
 
 	// code is consistent with wikipedia: https://en.wikipedia.org/wiki/Red%E2%80%93black_tree
 	struct node* parent(struct node* n) const {
@@ -133,6 +147,9 @@ private:
 			return NULL; // No grandparent means no uncle
 		}
 		return sibling(p);
+	}
+	char colorOf(struct node* n) {
+		return (n != NULL) ? n->color : BLACK;
 	}
 	void rotate_left(struct node* n) {
 		struct node* nnew = n->right;
@@ -175,31 +192,28 @@ private:
 		nnew->parent = p;
 	}
 
-	void insertBasic(struct node* root, struct node* n) {
+	void insert_basic(struct node* root, struct node* n) {
 		if(n->key <= root->key) {
 			if(root->left == LEAF){
 				root->left = n;
 				n->parent = root;
 			} else {
-				insertBasic(root->left, n);
+				insert_basic(root->left, n);
 			}
 		} else {
 			if(root->right == LEAF){
 				root->right = n;
 				n->parent = root;
 			} else {
-				insertBasic(root->right, n);
+				insert_basic(root->right, n);
 			}
 		}
 	}
 
 	struct node *insert(struct node* root, struct node* n) {
-		// insert new node into the current tree
-		insert_recurse(root, n);
-		// repair the tree in case any of the red-black properties have been violated
-		insert_repair_tree(n);
-		// find the new root to return
-		root = n;
+		insert_recurse(root, n);// insert new node into tree
+		insert_repair_tree(n); // repair violated red-black properties
+		root = n; // find root, which may have shifted during balancing
 		while (parent(root) != NULL) {
 			root = parent(root);
 		}
@@ -240,8 +254,7 @@ private:
 		}
 	}
 	void insert_case1(struct node* n) {
-		if (parent(n) == NULL)
-			n->color = BLACK;
+		if (parent(n) == NULL) { n->color = BLACK; }
 	}
 	void insert_case2(struct node* n) {
 		return; /* Do nothing since tree is still valid */
@@ -276,19 +289,136 @@ private:
 		g->color = RED;
 	}
 	void replace_node(struct node* n, struct node* child) {
+		printf("~A %d %d\n", child, n);
 		child->parent = n->parent;
+		printf("~B\n");
 		if (n == n->parent->left) {
+			printf("~C\n");
 			n->parent->left = child;
+			printf("~D\n");
 		} else {
+			printf("~E\n");
 			n->parent->right = child;
+			printf("~F\n");
 		}
 	}
-	void delete_one_child(struct node* n) {
-		/*
-		* Precondition: n has at most one non-leaf child.
-		*/
+	bool is_leaf(struct node* n) {
+		return (n == LEAF); return true;
+		//return n->left == LEAF && n->right == LEAF;
+	}
+
+	node* removeNode(node* t, KTYPE v) {
+		node n = find(t, v), c;
+		if (n == NULL) {
+			return NULL;
+		}
+		if (n->left != NULL && n->right != NULL) {
+			node* pred = n->left;
+			while (pred->right != NULL)
+				pred = pred->right;
+			n->value = pred->value;
+			n = pred;
+		}
+		c = n->right == NULL ? n->left : n->right;
+		if (n->color == BLACK)
+		{
+			n->color = colorOf(c);
+			removeUtil(n);
+		}
+		replaceNode(t, n, c);
+		return n;
+		//free(n);
+	}
+	void removeUtil(node n)
+	{
+		if (n->parent == NULL)
+			return;
+
+		node s = sibling(n);
+		if (colorOf(s) == RED)
+		{
+			n->parent->color = RED;
+			s->color = BLACK;
+			if (n == n->parent->left)
+				rotateLeft(n->parent);
+			else
+				rotateRight(n->parent);
+		}
+
+		s = sibling(n);
+		if (colorOf(n->parent) == BLACK && colorOf(s) == BLACK &&
+			colorOf(s->left) == BLACK && colorOf(s->right) == BLACK)
+		{
+			s->color = RED;
+			removeUtil(n->parent);
+		}
+		else if (colorOf(n->parent) == RED && colorOf(s) == BLACK &&
+			colorOf(s->left) == BLACK && colorOf(s->right) == BLACK)
+		{
+			s->color = RED;
+			n->parent->color = BLACK;
+		}
+		else
+		{
+			if (n == n->parent->left && colorOf(s) == BLACK &&
+				colorOf(s->left) == RED && colorOf(s->right) == BLACK)
+			{
+				s->color = RED;
+				s->left->color = BLACK;
+				rotateRight(s);
+			}
+			else if (n == n->parent->right && colorOf(s) == BLACK &&
+				colorOf(s->right) == RED && colorOf(s->left) == BLACK)
+			{
+				s->color = RED;
+				s->right->color = BLACK;
+				rotateLeft(s);
+			}
+
+			s->color = colorOf(n->parent);
+			n->parent->color = BLACK;
+			if (n == n->parent->left)
+			{
+				s->right->color = BLACK;
+				rotateLeft(n->parent);
+			}
+			else
+			{
+				s->left->color = BLACK;
+				rotateRight(n->parent);
+			}
+		}
+	}
+	void replaceNode(node* t, node o, node n)
+	{
+		if (o->parent == NULL)
+			*t = n;
+		else
+		{
+			if (o == o->parent->left)
+				o->parent->left = n;
+			else
+				o->parent->right = n;
+		}
+
+		if (n != NULL)
+			n->parent = o->parent;
+	}
+
+	struct node* delete_one_child(struct node* n) {
+		printf("A\n");
+		// Precondition: n has at most one non-leaf child
 		struct node* child = is_leaf(n->right) ? n->left : n->right;
-		replace_node(n, child);
+		printf("B\n");
+		if(child == LEAF) {
+			struct node fakeChild;
+			fakeChild.parent = n;
+			child = &fakeChild;
+			replace_node(n, child);
+		} else {
+			replace_node(n, child);
+		}
+		printf("C\n");
 		if (n->color == BLACK) {
 			if (child->color == RED) {
 				child->color = BLACK;
@@ -296,7 +426,7 @@ private:
 				delete_case1(child);
 			}
 		}
-		free(n);
+		//free(n);
 	}
 	void delete_case1(struct node* n) {
 		if (n->parent != NULL) {
@@ -376,4 +506,5 @@ private:
 		}
 	}
 };
+#undef LEAF
 #undef assert

@@ -3,7 +3,7 @@ spicetrade/main.cpp \
 spicetrade/mem.cpp \
 spicetrade/cli.cpp \
 spicetrade/cards.cpp \
-spicetrade/rb_tree.c
+spicetrade/rb_tree.cpp
 
 OUTPUT = spicetrade.exe
 
