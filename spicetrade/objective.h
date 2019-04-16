@@ -3,8 +3,8 @@ struct Objective {
 	int points;
 	int bonusPoints; // for the gold or silver coin
 	int bonusColor;
-	const char* resourceCost;
+	const char* input;
 	const char* name;
-	Objective (const char* resourceCost, int points, const char* name)
-		: resourceCost (resourceCost), points (points), bonusPoints (0), name (name) {}
+	Objective (const char* input, int points, const char* name)
+		: input (input), points (points), bonusPoints (0), name (name) {}
 };

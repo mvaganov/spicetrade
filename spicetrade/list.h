@@ -97,6 +97,11 @@ public:
 		Shift(data, start, (limitIndex < 0)?length:limitIndex, direction);
 	}
 	TYPE & operator[](const int index) { return Get(index); }
+	void VectorAddition(List<TYPE>& toAdd) {
+		for(int i = 0; i < length; ++i) {
+			data[i] += toAdd.data[i];
+		}
+	}
 private:
 	static void swap(TYPE* a, TYPE* b) { TYPE c = *a; *a = *b; *b = c; }
 	template<typename INDEXABLE>
