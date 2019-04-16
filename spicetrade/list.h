@@ -2,6 +2,7 @@
 #include "mem.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #define BOUNDSCHECK(index, count)	if(index < 0 || index >= count) {printf("oob %d out of %d: %s:%d\n", index, count, __FILE__, __LINE__);int i=0;i=1/i;}
 
 template<typename TYPE>
@@ -11,7 +12,8 @@ private:
 	TYPE * data;
 public:
 	List():length(0),data(NULL){}
-	List(List & toCopy):length(0),data(NULL) {
+	List(List & toCopy):length(0),data(NULL) { Copy(toCopy); }
+	void Copy(const List<TYPE> & toCopy) {
 		SetLength(toCopy.Length());
 		memcpy(data, toCopy.data, sizeof(TYPE)*length);
 	}
@@ -104,6 +106,11 @@ public:
 		}
 	}
 	void Sort() { quickSort<TYPE*>(data,0,Length()-1); }
+	TYPE Sum() const {
+		TYPE total = 0;
+		for(int i = 0; i < length; ++i) { total += data[i]; }
+		return total;
+	}
 };
 
 template<typename TYPE>
@@ -112,8 +119,9 @@ private:
 	int count;
 public:
 	VList():List<TYPE>::List(),count(0) {}
-	VList(VList & toCopy):List<TYPE>::List(),count(0) {
-		SetLength(toCopy.Length());
+	VList(VList & toCopy):List<TYPE>::List(),count(0) { Copy(toCopy); }
+	void Copy(VList & toCopy) {
+		List<TYPE>::SetLength(toCopy.List<TYPE>::Length());
 		count = toCopy.count;
 		memcpy(GetData(), toCopy.GetData(), sizeof(TYPE)*count);
 	}

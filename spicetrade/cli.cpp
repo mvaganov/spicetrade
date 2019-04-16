@@ -1,9 +1,9 @@
+#include "mem.h"
 #include "platform_conio.h"
 #include "cli.h"
 #include "clibuffer.h"
 #include <stdlib.h>	// malloc for custom sprintf implementation
 #include <stdio.h>	// putchar, printf, reading from STDIN
-#include "mem.h"
 
 const char *CLI::version = "0.0.4";
 
@@ -560,6 +560,7 @@ void CLI::init()
 void CLI::release()
 {
 	CLI::resetColor();
+	platform_setColor(g_CLI->getFcolor(), g_CLI->getBcolor());
 	if(g_CLI)
 	{
 		resetColor();

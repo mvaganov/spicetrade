@@ -2,9 +2,12 @@
 #include <string>
 
 class ResourceType {
-public:
-    std::string name;
-    char icon;
-    char color;
-    ResourceType(std::string name, char icon, char color):name(name),icon(icon),color(color){}
+  public:
+  	enum Type {none=0, resource=1, score=2};
+	std::string name;
+	char icon;
+	char type;
+	char color;
+	ResourceType (std::string name, char icon, char type, char color)
+	: name (name), icon (icon), type(type), color (color) {}
 };

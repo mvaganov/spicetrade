@@ -19,3 +19,4 @@ struct Step : public Vector2 {
 	Step(Vector2 v, int step):Vector2(v.x,v.y),step(step){}
 	Step(Vector2 v):Vector2(v.x,v.y),step(0){}
 };
+typedef Vector2 Coord;

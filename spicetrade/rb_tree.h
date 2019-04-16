@@ -40,18 +40,21 @@
 #	define RB_ITER_MAX_HEIGHT 64 // Tallest allowable tree to iterate
 #endif
 
-// template<typename K, typename V>
+//template<class KEY, class VAL>
 class RBT {
   public:
-	struct node {
+	struct Node {
 	  private:
 		int red; // Color red (1), black (0)
+
 	  public:
-		node *link[2]; // Link left [0] and right [1]
-		void *value;   // User provided, used indirectly via RBT_node_cmp_f.
-		static node *alloc () { return (RBT::node *)malloc (sizeof (RBT::node)); }
-		static node *create (void *value);
-		static node *init (node *self, void *value) {
+		Node* link[2]; // Link left [0] and right [1]
+		void* value;   // User provided, used indirectly via RBT_node_cmp_f.
+		static Node* alloc () { return (Node*)malloc (sizeof (Node)); }
+		static Node* create (void* value) {
+			return Node::init (Node::alloc (), value);
+		}
+		static Node* init (Node* self, void* value) {
 			if (self) {
 				self->setRed (1);
 				self->link[0] = self->link[1] = NULL;
@@ -59,78 +62,424 @@ class RBT {
 			}
 			return self;
 		}
-		static void dealloc (node *self);
+		static void dealloc (Node* self) {
+			if (self) {
+				free (self);
+			}
+		}
 
+	  private:
+	  public:
 		// OOP convenience
-		node () : red (0), value (0) { link[0] = link[1] = NULL; }
-		void init (void *value) { init (this); }
+		Node () : red (0), value (0) { link[0] = link[1] = NULL; }
+		void init (void* value) { init (this); }
 		void dealloc () { dealloc (this); }
 
 		void setRed (bool red) { this->red = red; }
 		bool isRed () const { return this->red; }
 	};
 	struct iter {
-		RBT *tree;
-		node *n;                        // Current node
-		node *path[RB_ITER_MAX_HEIGHT]; // Traversal path
+		RBT* tree;
+		Node* n;                        // Current node
+		Node* path[RB_ITER_MAX_HEIGHT]; // Traversal path
 		size_t top;                     // Top of stack
-		void *info;                     // User provided, not used by rb_iter.
+		void* info;                     // User provided, not used by rb_iter.
 
-		static iter *alloc ();
-		static iter *init (iter *self, RBT *tree);
-		static iter *create (RBT *tree);
-		static void dealloc (iter *self);
-		static void *first (iter *self);
-		static void *last (iter *self);
-		static void *next (iter *self);
-		static void *prev (iter *self);
+		static void* first (iter* self) {
+			return start (self, 0);
+		}
+
+		static void* last (iter* self) {
+			return start (self, 1);
+		}
+
+		static void* next (iter* self) {
+			return move (self, 1);
+		}
+
+		static void* prev (iter* self) {
+			return move (self, 0);
+		}
 
 	  private:
-		static void *start (iter *self, int dir);
-		static void *move (iter *self, int dir);
+		/**
+		* Internal function, init traversal object, dir determines whether
+		* to begin traversal at the smallest or largest valued node.
+		*/
+		static void* start (iter* self, int dir) {
+			void* result = NULL;
+			if (self) {
+				self->n = self->tree->root;
+				self->top = 0;
+				// Save the path for later selfersal
+				if (self->n != NULL) {
+					while (self->n->link[dir] != NULL) {
+						self->path[self->top++] = self->n;
+						self->n = self->n->link[dir];
+					}
+				}
+				result = self->n == NULL ? NULL : self->n->value;
+			}
+			return result;
+		}
+
+		// Traverse a red black tree in the user-specified direction (0 asc, 1 desc)
+		static void* move (iter* self, int dir) {
+			if (self->n->link[dir] != NULL) {
+				// Continue down this branch
+				self->path[self->top++] = self->n;
+				self->n = self->n->link[dir];
+				while (self->n->link[!dir] != NULL) {
+					self->path[self->top++] = self->n;
+					self->n = self->n->link[!dir];
+				}
+			} else {
+				// Move to the next branch
+				Node* last = NULL;
+				do {
+					if (self->top == 0) {
+						self->n = NULL;
+						break;
+					}
+					last = self->n;
+					self->n = self->path[--self->top];
+				} while (last == self->n->link[dir]);
+			}
+			return self->n == NULL ? NULL : self->n->value;
+		}
 
 	  public:
 		// OOP convenience
 		iter () : tree (NULL), n (NULL), info (NULL) {}
-		iter (RBT *tree) : tree (tree), n (NULL), info (NULL) {}
-		void init (RBT *tree) { init (this, tree); }
+		iter (RBT* tree) : tree (tree), n (NULL), info (NULL) {}
+		static iter* alloc () {
+			return (iter*)malloc (sizeof (iter));
+		}
+
+		static iter* init (iter* self, RBT* tree) {
+			if (self) {
+				self->tree = tree;
+				self->n = NULL;
+				self->top = 0;
+			}
+			return self;
+		}
+
+		static iter* create (RBT* tree) {
+			return init (alloc (), tree);
+		}
+
+		static void dealloc (iter* self) {
+			if (self) {
+				free (self);
+			}
+		}
+
+		void init (RBT* tree) { init (this, tree); }
 		void dealloc () { dealloc (this); }
-		void *first () { return first (this); }
-		void *last () { return last (this); }
-		void *next () { return next (this); }
-		void *prev () { return prev (this); }
+		void* first () { return first (this); }
+		void* last () { return last (this); }
+		void* next () { return next (this); }
+		void* prev () { return prev (this); }
 	};
 
-	typedef int (*node_cmp_f) (RBT *self, node *a, node *b);
-	typedef void (*node_f) (RBT *self, node *node);
-	node *root;
+	typedef int (*node_cmp_f) (RBT* self, Node* a, Node* b);
+	typedef void (*node_f) (RBT* self, Node* node);
+	Node* root;
 	node_cmp_f cmp;
 	size_t _size;
-	void *info; // User provided, not used by RBT.
+	void* info; // User provided, not used by RBT.
 
-	static int node_cmp_ptr_cb (RBT *self, node *a, node *b);
-	static void node_dealloc_cb (RBT *self, node *node);
+	static int node_cmp_ptr_cb (RBT* self, Node* a, Node* b) {
+		return (a->value > b->value) - (a->value < b->value);
+	}
 
-	static RBT *alloc ();
-	static RBT *create (RBT::node_cmp_f cmp);
-	static RBT *init (RBT *self, node_cmp_f cmp);
-	static void dealloc (RBT *self, node_f node_cb);
-	static void *find (RBT *self, void *value);
-	static int insert (RBT *self, void *value);
-	static int remove (RBT *self, void *value);
-	static size_t size (RBT *self);
+	static void node_dealloc_cb (RBT* self, Node* node) {
+		if (self && node) {
+			Node::dealloc (node);
+		}
+	}
 
-	static int insert_node (RBT *self, node *node);
-	static int remove_with_cb (RBT *self, void *value, node_f node_cb);
+	static RBT* alloc () { return (RBT*)malloc (sizeof (RBT)); }
+
+	static RBT* init (RBT* self, node_cmp_f node_cmp_cb) {
+		if (self) {
+			self->root = NULL;
+			self->_size = 0;
+			self->cmp = node_cmp_cb ? node_cmp_cb : node_cmp_ptr_cb;
+		}
+		return self;
+	}
+
+	static RBT* create (node_cmp_f node_cb) {
+		return init (alloc (), node_cb);
+	}
+
+	static void dealloc (RBT* self, node_f node_cb) {
+		if (self) {
+			if (node_cb) {
+				Node* that = self->root;
+				Node* save = NULL;
+				// Rotate away the left links so that we can treat this like the destruction of a linked list
+				while (that) {
+					if (that->link[0] == NULL) { // No left links, just kill that node and move on
+						save = that->link[1];
+						node_cb (self, that);
+						that = NULL;
+					} else { // Rotate away the left link and check again
+						save = that->link[0];
+						that->link[0] = save->link[1];
+						save->link[1] = that;
+					}
+					that = save;
+				}
+			}
+			free (self);
+		}
+	}
+
+	static void* find (RBT* self, void* value) {
+		void* result = NULL;
+		if (self) {
+			Node what;
+			what.value = value;
+			Node* it = self->root;
+			int cmp = 0;
+			while (it) {
+				if ((cmp = self->cmp (self, it, &what))) {
+					// If tree supports duplicates, they should be chained to the right subtree for this to work
+					it = it->link[cmp < 0];
+				} else {
+					break;
+				}
+			}
+			result = it ? it->value : NULL;
+		}
+		return result;
+	}
+
+	// Creates (malloc'ates)
+	static int insert (RBT* self, void* value) {
+		return insert_node (self, Node::create (value));
+	}
+
+	/** Returns 1 on success, 0 otherwise. */
+	static int insert_node (RBT* self, Node* what) {
+		int result = 0;
+		if (self && what) {
+			if (self->root == NULL) {
+				self->root = what;
+				result = 1;
+			} else {
+				Node head;   // False tree root
+				Node *g, *t; // Grandparent & parent
+				Node *p, *q; // Iterator & parent
+				int dir = 0, last = 0;
+				// Set up our helpers
+				t = &head;
+				g = p = NULL;
+				q = t->link[1] = self->root;
+				// Search down the tree for a place to insert
+				while (1) {
+					if (q == NULL) {
+						// Insert node at the first null link.
+						p->link[dir] = q = what;
+					} else if (rb_node_is_red (q->link[0]) && rb_node_is_red (q->link[1])) {
+						// Simple red violation: color flip
+						q->setRed (1);
+						q->link[0]->setRed (0);
+						q->link[1]->setRed (0);
+					}
+					if (rb_node_is_red (q) && rb_node_is_red (p)) {
+						// Hard red violation: rotations necessary
+						int dir2 = t->link[1] == g;
+						if (q == p->link[last]) {
+							t->link[dir2] = rb_node_rotate (g, !last);
+						} else {
+							t->link[dir2] = rb_node_rotate2 (g, !last);
+						}
+					}
+					// Stop working if we inserted a node. This check also disallows duplicates in the tree
+					if (self->cmp (self, q, what) == 0) {
+						break;
+					}
+					last = dir;
+					dir = self->cmp (self, q, what) < 0;
+					// Move the helpers down
+					if (g != NULL) {
+						t = g;
+					}
+					g = p, p = q;
+					q = q->link[dir];
+				}
+				// Update the root (it may be different)
+				self->root = (head.link[1]);
+			}
+			// Make the root black for simplified logic
+			self->root->setRed (0);
+			++self->_size;
+		}
+		return 1;
+	}
+	static int remove (RBT* self, void* value) {
+		int result = 0;
+		if (self) {
+			result = remove_with_cb (self, value, node_dealloc_cb);
+		}
+		return result;
+	}
+
+	static size_t size (RBT* self) {
+		size_t result = 0;
+		if (self) {
+			result = self->_size;
+		}
+		return result;
+	}
+
+	/**
+	* Returns 1 if the value was removed, 0 otherwise. Optional node callback
+	* can be provided to dealloc node and/or user data. Use RBT_node_dealloc
+	* default callback to deallocate node created by RBT_insert(...).
+	*/
+	static int remove_with_cb (RBT* self, void* value, node_f node_cb) {
+		if (self->root != NULL) {
+			Node head; // False tree root
+			Node what; // Value wrapper node
+			what.value = value;
+			Node *q, *p, *g; // Helpers
+			Node* f = NULL;  // Found item
+			int dir = 1;
+			// Set up our helpers
+			q = &head;
+			g = p = NULL;
+			q->link[1] = self->root;
+			// Search and push a red node down to fix red violations as we go
+			while (q->link[dir] != NULL) {
+				int last = dir;
+				// Move the helpers down
+				g = p, p = q;
+				q = q->link[dir];
+				dir = self->cmp (self, q, &what) < 0;
+				// Save the node with matching value and keep going; we'll do removal tasks at the end
+				if (self->cmp (self, q, &what) == 0) {
+					f = q;
+				}
+				// Push the red node down with rotations and color flips
+				if (!rb_node_is_red (q) && !rb_node_is_red (q->link[dir])) {
+					if (rb_node_is_red (q->link[!dir])) {
+						p = p->link[last] = rb_node_rotate (q, dir);
+					} else if (!rb_node_is_red (q->link[!dir])) {
+						Node* s = p->link[!last];
+						if (s) {
+							if (!rb_node_is_red (s->link[!last]) && !rb_node_is_red (s->link[last])) {
+								// Color flip
+								p->setRed (0);
+								s->setRed (1);
+								q->setRed (1);
+							} else {
+								int dir2 = g->link[1] == p;
+								if (rb_node_is_red (s->link[last])) {
+									g->link[dir2] = rb_node_rotate2 (p, last);
+								} else if (rb_node_is_red (s->link[!last])) {
+									g->link[dir2] = rb_node_rotate (p, last);
+								}
+								// Ensure correct coloring
+								q->setRed (1);
+								g->link[dir2]->setRed (1);
+								g->link[dir2]->link[0]->setRed (0);
+								g->link[dir2]->link[1]->setRed (0);
+							}
+						}
+					}
+				}
+			}
+			// Replace and remove the saved node
+			if (f) {
+				void* tmp = f->value;
+				f->value = q->value;
+				q->value = tmp;
+				p->link[p->link[1] == q] = q->link[q->link[0] == NULL];
+				if (node_cb) {
+					node_cb (self, q);
+				}
+				q = NULL;
+			}
+			// Update the root (it may be different)
+			self->root = head.link[1];
+			// Make the root black for simplified logic
+			if (self->root != NULL) {
+				self->root->setRed (1);
+			}
+			--self->_size;
+		}
+		return 1;
+	}
 
   private:
-	static int test (RBT *self, node *root);
+	static Node* rb_node_rotate (Node* self, int dir) {
+		Node* result = NULL;
+		if (self) {
+			result = self->link[!dir];
+			self->link[!dir] = result->link[dir];
+			result->link[dir] = self;
+			self->setRed (1);
+			result->setRed (0);
+		}
+		return result;
+	}
+
+	static Node* rb_node_rotate2 (Node* self, int dir) {
+		Node* result = NULL;
+		if (self) {
+			self->link[!dir] = rb_node_rotate (self->link[!dir], !dir);
+			result = rb_node_rotate (self, dir);
+		}
+		return result;
+	}
+	/** won't just use ->isRed() because NULL nodes must always count as black. */
+	static int rb_node_is_red (const Node* self) {
+		return self ? self->isRed () : 0;
+	}
+	static int test (RBT* self, Node* root) {
+		int lh, rh;
+		if (root == NULL)
+			return 1;
+		else {
+			Node* ln = root->link[0];
+			Node* rn = root->link[1];
+			// Consecutive red links
+			if (root->isRed ()) {
+				if (ln->isRed () || rn->isRed ()) {
+					printf ("Red violation");
+					return 0;
+				}
+			}
+			lh = test (self, ln);
+			rh = test (self, rn);
+			// Invalid binary search tree
+			if ((ln != NULL && self->cmp (self, ln, root) >= 0) || (rn != NULL && self->cmp (self, rn, root) <= 0)) {
+				puts ("Binary tree violation");
+				return 0;
+			}
+			// Black height mismatch
+			if (lh != 0 && rh != 0 && lh != rh) {
+				puts ("Black violation");
+				return 0;
+			}
+			// Only count black links
+			if (lh != 0 && rh != 0)
+				return rb_node_is_red (root) ? lh : lh + 1;
+			else
+				return 0;
+		}
+	}
 
   public:
 	// OOP convenience
-	void *find (void *value) { return find (this, value); }
-	int insert (void *value) { return insert (this, value); }
-	int remove (void *value) { return remove (this, value); }
+	void* find (void* value) { return find (this, value); }
+	int insert (void* value) { return insert (this, value); }
+	int remove (void* value) { return remove (this, value); }
 	size_t size () { return size (this); }
-	iter *createIter () { return iter::create (this); }
+	iter* createIter () { return iter::create (this); }
 };

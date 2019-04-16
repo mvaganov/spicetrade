@@ -1,6 +1,7 @@
 #pragma once
 
 #include "clibuffer.h"
+#include "vector2.h"
 
 // TODO make a getstring or getline function that puts getchar input into a given string array of a given size
 
@@ -175,6 +176,7 @@ namespace CLI
 
 	/** move the cursor to the given location in the console */
 	void move(int row, int col);
+	inline void move(Coord pos) { move(pos.y, pos.x); }
 
 	/** @return key press from input buffer, -1 none. {@link kbhit()} */
 	int getchar();

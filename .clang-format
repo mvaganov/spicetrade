@@ -2,6 +2,13 @@
 Language: Cpp
 BasedOnStyle: LLVM
 UseTab: ForContinuationAndIndentation
+PointerAlignment: Left
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Always
+AllowShortLoopsOnASingleLine: true
 IndentWidth: 4
 AllowShortIfStatementsOnASingleLine: false
 IndentCaseLabels: false
