@@ -10,9 +10,14 @@
 class Player {
   public:
 	std::string name;
-	VList<PlayAction*> unplayedCards;
-	VList<PlayAction*> playedCards;
 	VList<Objective*> objectives;
-	RBTree<ResourceType*, int> resourceInventory;
-	List<char> resourceStore;
+
+	VList<PlayAction*> hand;
+	VList<PlayAction*> played;
+	List<int> inventory;
+
+	VList<PlayAction*> handPrediction;
+	VList<PlayAction*> playedPrediction;
+	List<int> inventoryPrediction;
+
 };

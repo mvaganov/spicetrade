@@ -49,18 +49,20 @@ public:
 		length = 0;
 	}
 	TYPE * SetLength(const int size) {
-		TYPE * newData = NEWMEM_ARR(TYPE, size);
-		if(newData == NULL) {
-			return NULL;
+		if(length != size) {
+			TYPE * newData = NEWMEM_ARR(TYPE, size);
+			if(newData == NULL) {
+				return NULL;
+			}
+			if(data != NULL){
+				int limit = (length<size)?length:size;
+				for(int i = 0; i < limit; ++i){ newData[i] = data[i]; }
+				DELMEM_ARR(data);
+				data = NULL;
+			}
+			data = newData;
+			length = size;
 		}
-		if(data != NULL){
-			int limit = (length<size)?length:size;
-			for(int i = 0; i < limit; ++i){ newData[i] = data[i]; }
-			DELMEM_ARR(data);
-			data = NULL;
-		}
-		data = newData;
-		length = size;
 		return data;
 	}
 	TYPE * GetData() { return data; }
@@ -79,6 +81,20 @@ public:
 	void Set(const int index, const TYPE & value){
 		BOUNDSCHECK(index, length);
 		data[index] = value;
+	}
+	/**
+	* @param data
+	* @param start will be overwritten by the element -direction elements away
+	*/
+	static void Shift(TYPE * data, const int start, const int limitIndex, const int direction=-1) {
+		if(direction < 0){
+			for(int i = start; i < limitIndex+direction; ++i) { data[i]=data[i-direction]; }
+		} else if(direction > 0) {
+			for(int i = limitIndex+direction-1; i >= start; --i) { data[i]=data[i-direction]; }
+		}
+	}
+	void Shift(const int start, const int limitIndex=-1, const int direction=-1) {
+		Shift(data, start, (limitIndex < 0)?length:limitIndex, direction);
 	}
 	TYPE & operator[](const int index) { return Get(index); }
 private:
@@ -152,10 +168,10 @@ public:
 	}
 	bool Insert(const int index, TYPE & value) {
 		if(!EnsureCapacity(count+1)) return false;
-		for(int i = count; i > index; --i) {
+		++count;
+		for(int i = count-1; i > index; --i) {
 			Set(i, Get(i-1));
 		}
-		++count;
 		Set(index, value);
 		return true;
 	}
@@ -179,6 +195,11 @@ public:
 	void RemoveAt(const int index) {
 		for(int i = index; i < count-1; ++i) { Set(i, Get(i+1)); }
 		count--;
+	}
+	TYPE PopFirst() {
+		TYPE first = List<TYPE>::GetAt(0);
+		RemoveAt(0);
+		return first;
 	}
 	TYPE PopLast() {
 		count--;
@@ -290,4 +311,66 @@ public:
 	}
 	TYPE & operator[](const int index) { return Get(index); }
 	void Sort() { List<TYPE>::quickSort(*this,0,Count()-1); }
+};
+
+template<typename T>
+class Queue {
+	public:
+	#define prev 0
+	#define next 1
+	#define first 0
+	#define last 1
+	struct Node{
+		T value;
+		Node * dir[2]; // 0 is prev, 1 is next
+		Node(){}
+		Node(T value):value(value) {ClearLinks();}
+		void ClearLinks() {dir[0]=dir[1]=NULL;}
+	};
+	Node* end[2];
+	PageList<Node> pages;
+	VList<Node*> freed;
+	Queue(){memset(end, 0, sizeof(end));}
+	Node * NewNode(const T& value) {
+		if(freed.Count() > 0) {
+			Node* n = freed.PopLast();
+			n->value = value;
+			n->ClearLinks();
+		}
+		return pages.GetAdd(Node(value));
+	}
+	int Count(){ return pages.Count() - freed.Count(); }
+	void Enqueue(const T& value, const int whichEnd = last) {
+		Node* n = NewNode(value);
+		if(end[whichEnd] == NULL) {
+			end[whichEnd] = end[!whichEnd] = n;
+		} else {
+			end[whichEnd]->dir[whichEnd] = n;
+			n->dir[!whichEnd] = end[whichEnd];
+			end[whichEnd] = n;
+		}
+	}
+	void EnqueueFront(const T& value) { Enqueue(value, first); }
+	void PushBack(const T& value) { Enqueue(value, last); }
+	T Peek(const int whichEnd=first) { return end[whichEnd]->value; }
+	T PeekFront() { return Peek(first); }
+	T PeekBack() { return Peek(last); }
+	T Pop(const int whichEnd=first) {
+		return *PopPtr(whichEnd);
+	}
+	T* PopPtr(const int whichEnd=first) {
+		Node* n = end[whichEnd];
+		if(n == NULL) return NULL;
+		end[whichEnd] = end[whichEnd]->dir[!whichEnd];
+		end[whichEnd]->dir[whichEnd] = NULL;
+		n->dir[!whichEnd] = NULL;
+		freed.Add(n);
+		return &n->value;
+	}
+	T PopFront() { return Pop(first); }
+	T PopBack() { return Pop(last); }
+	#undef next
+	#undef prev
+	#undef first
+	#undef last
 };
