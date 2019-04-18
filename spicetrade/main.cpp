@@ -44,6 +44,7 @@
 
 void print (std::string str) { CLI::printf ("%s", str.c_str ()); }
 void print (const char* str) { CLI::printf ("%s", str); }
+int clampint(int n, int mn, int mx) { return ((n<mn)?mn:((n>mx)?mx:n)); }
 
 Dictionary<char, const ResourceType*> resourceLookup;
 // code -> index-in-inventory
@@ -184,6 +185,249 @@ void RefreshPrediction(int& upgradesToDo, PredictionState& valid, VList<int>& se
 	} else {
 		bool canAfford = Calculate(upgradesToDo, predictionHand, predictionPlayed, selected, prediction);
 		valid = canAfford?PredictionState::valid:PredictionState::invalid;
+	}
+}
+
+void UpdateObjectiveBuy(Player& p, int userInput, int& goldLeft, int& silverLeft, List<const Objective*>& achievements, VList<const Objective*>& achievement_deck){
+	switch(userInput) {
+	case 'a':
+		p.marketCursor--; if(p.marketCursor < 0) { p.marketCursor = 0; }
+		break;
+	case 'd':
+		p.marketCursor++; if(p.marketCursor >= achievements.Length()) { p.marketCursor = achievements.Length()-1; }
+		break;
+	case 's':
+		p.ui = UserControl::ui_cards;
+		break;
+	case '\n': case '\r': {
+		const Objective * o = achievements[p.marketCursor];
+		// determine costs
+		bool canAfford = true;
+		p.inventoryPrediction.Copy(p.inventory);
+		// check if the inventory has sufficient resources
+		for(int i = 0; i < o->input.length(); ++i) {
+			int resIndex = resourceIndex.Get(o->input[i]);
+			p.inventoryPrediction[resIndex]--;
+			if(p.inventoryPrediction[resIndex] < 0) {
+				canAfford = false;
+			}
+		}
+		// if the resources are there
+		if(canAfford) {
+			Objective userObj(*o);
+			// remove the resources from the inventory
+			p.inventory.Copy(p.inventoryPrediction);
+			// add the silver or gold status to the achievement if applicable (i==0&&hasGold>0)
+			if(p.marketCursor == 0 || p.marketCursor == 1) {
+				bool giveGold = false, giveSilver = false;
+				// mark that a gold or silver value has been achieved
+				if(p.marketCursor == 0) { giveGold = goldLeft > 0; }
+				if((p.marketCursor == 0 && goldLeft ==0)
+				|| (p.marketCursor == 1 && goldLeft > 0)) { giveSilver = silverLeft>0; }
+				if(giveGold){ goldLeft--; userObj.bonusPoints = 3; }
+				if(giveSilver){ silverLeft--; userObj.bonusPoints = 1; }
+			}
+			// add achievement to the player's achievements
+			p.achieved.Add(userObj);
+			// remove the achievement from the achievements list
+			achievements.Shift(p.marketCursor);
+			// pull an achievement from the deck
+			achievements[achievements.Length()-1] = achievement_deck.PopLast();
+		}
+	}
+}
+}
+
+void UpdateUpgrade(Player& p, int userInput) {
+	if(p.ui != p.lastState) {
+		p.inventoryPrediction.Copy(p.inventory);
+		p.upgradesMade = 0;
+	}
+	switch(userInput) {
+	case 'w':
+		if(p.upgradesMade < p.upgradeChoices && p.inventoryCursor < p.inventory.Length()-1 
+		&& p.inventoryPrediction[p.inventoryCursor] > 0) {
+			p.inventoryPrediction[p.inventoryCursor]--;
+			p.inventoryPrediction[p.inventoryCursor+1]++;
+			p.upgradesMade++;
+		}
+		break;
+	case 's':
+		if(p.upgradesMade > 0 && p.inventoryCursor > 0 
+		&& p.inventoryPrediction[p.inventoryCursor] > 0
+		&& p.inventory[p.inventoryCursor] < p.inventoryPrediction[p.inventoryCursor]) {
+			p.inventoryPrediction[p.inventoryCursor]--;
+			p.inventoryPrediction[p.inventoryCursor-1]++;
+			p.upgradesMade--;
+		}
+		break;
+	case 'a':
+		p.inventoryCursor--;
+		if(p.inventoryCursor<0) p.inventoryCursor = 0;
+		break;
+	case 'd':
+		p.inventoryCursor++;
+		if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
+		break;
+	case '\n': case '\r':
+		p.ui = UserControl::ui_hand;
+		p.inventory.Copy(p.inventoryPrediction);
+		p.upgradeChoices = 0;
+		p.upgradesMade = 0;
+		break;
+	}
+}
+
+void UpdateAcquire(Player& p, int userInput, List<const PlayAction*>& market, List<List<int>*>& acquireBonus, 
+	List<int>& resourcePutInto, VList<const PlayAction*>& play_deck){
+	bool probablyPaidUp = p.marketCardToBuy == 0;
+	if(!probablyPaidUp) {
+		switch(userInput) {
+			case 'w':
+				if(resourcePutInto[p.marketCursor] == -1 && p.inventory[p.inventoryCursor] > 0) {
+					resourcePutInto[p.marketCursor] = p.inventoryCursor;
+					p.inventory[resourcePutInto[p.marketCursor]]--;
+					(*acquireBonus[p.marketCursor])[resourcePutInto[p.marketCursor]]++;
+				}
+				break;
+			case 'a':
+				if(resourcePutInto[p.marketCursor] == -1) {
+					int loopGuard = 0;
+					do {
+						p.inventoryCursor--;
+						if(p.inventoryCursor < 0) {
+							if(p.marketCursor > 0) {
+								p.marketCursor--;
+							} else {
+								p.marketCursor = p.marketCardToBuy-1;
+							}
+							p.inventoryCursor = p.inventory.Length()-1;
+						}
+						if(loopGuard++ > p.inventory.Length()*p.marketCardToBuy) {break;}
+					} while(p.inventory[p.inventoryCursor] == 0);
+				} else {
+					if(p.marketCursor > 0) p.marketCursor--;
+				}
+				break;
+			case 's':
+				if(resourcePutInto[p.marketCursor] != -1) {
+					(*acquireBonus[p.marketCursor])[resourcePutInto[p.marketCursor]]--;
+					p.inventory[resourcePutInto[p.marketCursor]]++;
+					resourcePutInto[p.marketCursor] = -1;
+				}
+				break;
+			case 'd':
+				if(resourcePutInto[p.marketCursor] == -1) {
+					int loopGuard = 0;
+					do {
+						p.inventoryCursor++;
+						if(p.inventoryCursor >= p.inventory.Length()) {
+							if(p.marketCursor < p.marketCardToBuy-1) {
+								p.marketCursor++;
+							} else {
+								p.marketCursor = 0;
+							}
+							p.inventoryCursor = 0;
+						}
+						if(loopGuard++ > p.inventory.Length()*p.marketCardToBuy) {break;}
+					} while(p.inventory[p.inventoryCursor] == 0);
+				} else {
+					if(p.marketCursor < p.marketCardToBuy-1) p.marketCursor++;
+				}
+				break;
+			case '\n': case '\r':
+				probablyPaidUp = true;
+				break;
+		}
+	}
+	if(p.marketCursor >= 0 && p.marketCursor < resourcePutInto.Length() && resourcePutInto[p.marketCursor] != -1) {
+		p.inventoryCursor = resourcePutInto[p.marketCursor];
+	}
+
+	bool paidUp = false;
+	if(probablyPaidUp) {
+		// check if all of the market positions before this one are paid
+		paidUp = true;
+		for(int i = 0; i < resourcePutInto.Length() && i < p.marketCardToBuy; ++i) {
+			if(resourcePutInto[i] == -1) { paidUp = false; break; }
+		}
+	}
+	if(paidUp) {
+		List<int>* bonus = acquireBonus[p.marketCardToBuy];
+		p.hand.Insert(0, market[p.marketCardToBuy]);
+		p.handPrediction.Copy(p.hand);
+		market.Shift(p.marketCardToBuy);
+		if(play_deck.Count() > 0) {
+			market[market.Length()-1] = play_deck.PopLast();
+		} else {
+			market[market.Length()-1] = NULL;
+		}
+		if(bonus != NULL) {
+			for(int i = 0; i < p.inventory.Length(); ++i) {
+				p.inventory[i] += (*bonus)[i];
+			}
+			DELMEM(bonus);
+		}
+		acquireBonus.Shift(p.marketCardToBuy);
+		acquireBonus[acquireBonus.Length()-1] = NULL;
+		p.marketCardToBuy = -1;
+		p.ui = UserControl::ui_cards;
+	}
+}
+
+void UpdateMarket(Player& p, int userInput, List<const PlayAction*>& market, List<List<int>*>& acquireBonus, List<int>& resourcePutInto) {
+	switch(userInput) {
+	case 'a':
+		p.marketCursor--; if(p.marketCursor < 0) { p.marketCursor = 0; }
+		break;
+	case 'd':
+		p.marketCursor++; if(p.marketCursor >= market.Length()) { p.marketCursor = market.Length()-1; }
+		break;
+	case 'w':
+		p.ui = UserControl::ui_objectives;
+		break;
+	case 's':
+		p.ui = UserControl::ui_hand;
+		break;
+	case '\n': case '\r': {
+		int total = p.inventory.Sum();
+		if(total < p.marketCursor) {
+			printf("too expensive, cannot afford.\n");
+		} else {
+			resourcePutInto.SetAll(-1);
+			p.marketCardToBuy = p.marketCursor;
+			p.marketCursor = 0;
+			for(int i = 0; i < p.marketCardToBuy; ++i) {
+				if(acquireBonus[i] == NULL) {
+					acquireBonus[i] = NEWMEM(List<int>(p.inventory.Length(), 0));
+				}
+			}
+			p.ui = ui_acquire;
+		}
+	}
+}
+}
+
+void UpdateInventory(Player& p, int userInput) {
+	switch(userInput) {
+		case 'w':
+			p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]+1,0,p.inventory[p.inventoryCursor]);
+			break;
+		case 's':
+			p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]-1,0,p.inventory[p.inventoryCursor]);
+			break;
+		case 'a':
+			p.inventoryCursor--;
+			if(p.inventoryCursor<0) p.inventoryCursor = 0;
+			break;
+		case 'd':
+			p.inventoryCursor++;
+			if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
+			break;
+		case '\n': case '\r':
+			p.ui = UserControl::ui_hand;
+			p.inventory.Copy(p.inventoryPrediction);
+			break;
 	}
 }
 
@@ -346,7 +590,6 @@ void PrintHand (Coord pos, int count, Player& p) {
 		CLI::move (pos.y + limit + i - p.handOffset, pos.x);
 		CLI::printf ("..............");
 	}
-	CLI::setColor (-1, -1);
 }
 
 void PrintInventory(int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected) {
@@ -373,33 +616,32 @@ void PrintInventory(int background, int numberWidth, bool showZeros, List<int> &
 	}
 }
 
-void PrintResourcesInventory(UserControl ui, Coord cursor, 
-	VList<const ResourceType*>& collectableResources, List<int>& inventory, List<int>& prediction, 
-	int inventoryCursor, int maxInventory, PredictionState& validPrediction, int upgradesMade, int upgradePossible){
+void PrintResourcesInventory(Coord cursor, Player& p,
+	VList<const ResourceType*>& collectableResources, int maxInventory){
 	const int numberWidth = 2;
 	CLI::setColor (-1, -1);
-	if(validPrediction == PredictionState::valid || validPrediction == PredictionState::invalid) {
-		PrintInventory(CLI::COLOR::DARK_GRAY, numberWidth, true, inventory, collectableResources, cursor, 
-			(ui==UserControl::ui_inventory)?inventoryCursor:-1); cursor.y+=1;
+	if(p.validPrediction == PredictionState::valid || p.validPrediction == PredictionState::invalid) {
+		PrintInventory(CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, collectableResources, cursor, 
+			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1); cursor.y+=1;
 		// draw fake resources... or warning message
-		PrintInventory(validPrediction?CLI::COLOR::BLACK:CLI::COLOR::RED, numberWidth, true, prediction, collectableResources, cursor, 
-			(ui==UserControl::ui_inventory)?inventoryCursor:-1);
+		PrintInventory(p.validPrediction?CLI::COLOR::BLACK:CLI::COLOR::RED, numberWidth, true, p.inventoryPrediction, collectableResources, cursor, 
+			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1);
 	} else {
-		if(ui==UserControl::ui_inventory || ui==UserControl::ui_upgrade) {
+		if(p.ui==UserControl::ui_inventory || p.ui==UserControl::ui_upgrade) {
 			// if modifying the inventory, show the prediction, which is the modifying list
-			PrintInventory(CLI::COLOR::DARK_GRAY, numberWidth, true, prediction, collectableResources, cursor, inventoryCursor);
+			PrintInventory(CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventoryPrediction, collectableResources, cursor, p.inventoryCursor);
 		} else {
-			PrintInventory(CLI::COLOR::DARK_GRAY, numberWidth, true, inventory, collectableResources, cursor, -1);
+			PrintInventory(CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, collectableResources, cursor, -1);
 		}
 		cursor.y+=1;
 		CLI::move(cursor);
-		if(upgradePossible == 0) {
-			int total = prediction.Sum();
+		if(p.upgradeChoices == 0) {
+			int total = p.inventoryPrediction.Sum();
 			CLI::setColor(CLI::COLOR::WHITE, (total<=maxInventory)?CLI::COLOR::BLACK:CLI::COLOR::RED);
 			printf("resources:%3d/%2d", total, maxInventory);
 		} else {
-			CLI::setColor(CLI::COLOR::WHITE, (upgradesMade<upgradePossible)?CLI::COLOR::RED:CLI::COLOR::BLACK);
-			printf("+ upgrades:%2d/%2d", upgradesMade, upgradePossible);
+			CLI::setColor(CLI::COLOR::WHITE, (p.upgradesMade<p.upgradeChoices)?CLI::COLOR::RED:CLI::COLOR::BLACK);
+			printf("+ upgrades:%2d/%2d", p.upgradesMade, p.upgradeChoices);
 		}
 	}
 
@@ -439,6 +681,7 @@ void PrintAchievements(Coord cursor, const List<const Objective*>& achievements,
 void PrintMarket(Coord cursor, List<const PlayAction*>& market, List<const Player*>& players, 
 	List<List<int>*>& acquireBonus, List<int>& resourcePutInto, const VList<const ResourceType*>& collectableResources) {
 	const Player* currentPlayer = players[0];
+	int totalResources = currentPlayer->inventory.Sum();
 	for(int i = 0; i < market.Length(); ++i) {
 		CLI::move(cursor);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
@@ -451,7 +694,7 @@ void PrintMarket(Coord cursor, List<const PlayAction*>& market, List<const Playe
 			}
 		}
 		putchar((p)?'>':' ');
-		PrintAction(market[i], CLI::COLOR::BLACK);
+		PrintAction(market[i], (totalResources >= i)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
 		putchar((p)?'<':' ');
 		cursor.y++;
@@ -493,7 +736,6 @@ void PrintUserState(Coord cursor, const Player & p) {
 
 }
 
-int clampint(int n, int mn, int mx) { return ((n<mn)?mn:((n>mx)?mx:n)); }
 
 int main (int argc, const char** argv) {
 	for (int i = 0; i < argc; ++i) { printf ("[%d] %s\n", i, argv[i]); }
@@ -525,7 +767,6 @@ int main (int argc, const char** argv) {
 	platform_shuffle (play_deck.GetData (), 0, play_deck.Count ());
 	Player p;
 	p.Set("Mr. V", collectableResources.Count ());
-
 	const int marketCards = 6;
 	const int achievementCards = 5;
 	List<const PlayAction*> market(marketCards);
@@ -548,9 +789,6 @@ int main (int argc, const char** argv) {
 	p.playedPrediction.Copy(p.played);
 
 	p.inventory[0] = 2; // start with 2 basic resource
-	// debug
-	p.inventory[1] = 1;
-	p.inventory[2] = 3;
 
 	CLI::init ();
 	CLI::setSize (CLI::getWidth (), 25);
@@ -567,20 +805,14 @@ int main (int argc, const char** argv) {
 	List<const Player*> playerUIOrder(1); // TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
 	playerUIOrder[0] = &p;
 	while (running) {
-		// draw
 		PrintHand (Coord(1,9), count, p);
-		// draw achievements
 		PrintAchievements(Coord(1,2), achievements, playerUIOrder);
-		// draw market cards
 		PrintMarket(Coord(1,6), market, playerUIOrder, acquireBonus, resourcePutInto, collectableResources);
-		// draw resources
-		PrintResourcesInventory(p.ui, Coord(1,20), collectableResources, p.inventory, p.inventoryPrediction,
-			p.inventoryCursor, maxInventory, p.validPrediction, p.upgradesMade, p.upgradeChoices);
-		// draw username
+		PrintResourcesInventory(Coord(1,20), p, collectableResources, maxInventory);
 		PrintUserState(Coord(1,23), p);
-		CLI::setColor(-1,-1); // reset color
 
 		// input
+		CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1); // reset color
 		CLI::move(0,0);
 		int userInput = CLI::getch ();
 		// update
@@ -594,251 +826,26 @@ int main (int argc, const char** argv) {
 			case UserControl::ui_hand:
 				printf("hand management        ");
 				UpdateHand (p, userInput, count);
-				// on hand exit, clear selected, reset predictions to current state
+				// on hand exit, clear p.selected, reset predictions to current state
 				break;
-			case UserControl::ui_inventory: {
+			case UserControl::ui_inventory:
 				printf("resource management        ");
 				// on enter, prediction should be a copy of inventory. modify prediction
-				switch(userInput) {
-					case 'w':
-						p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]+1,0,p.inventory[p.inventoryCursor]);
-						break;
-					case 's':
-						p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]-1,0,p.inventory[p.inventoryCursor]);
-						break;
-					case 'a':
-						p.inventoryCursor--;
-						if(p.inventoryCursor<0) p.inventoryCursor = 0;
-						break;
-					case 'd':
-						p.inventoryCursor++;
-						if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
-						break;
-					case '\n': case '\r':
-						p.ui = UserControl::ui_hand;
-						p.inventory.Copy(p.inventoryPrediction);
-						break;
-				}
-			}
+				UpdateInventory(p, userInput);
 				break;
-			case UserControl::ui_cards: {
+			case UserControl::ui_cards:
 				printf("select cards              ");
-				switch(userInput) {
-					case 'a':
-						p.marketCursor--; if(p.marketCursor < 0) { p.marketCursor = 0; }
-						break;
-					case 'd':
-						p.marketCursor++; if(p.marketCursor >= market.Length()) { p.marketCursor = market.Length()-1; }
-						break;
-					case 'w':
-						p.ui = UserControl::ui_objectives;
-						break;
-					case 's':
-						p.ui = UserControl::ui_hand;
-						break;
-					case '\n': case '\r': {
-						int total = p.inventory.Sum();
-						if(total < p.marketCursor) {
-							printf("too expensive, cannot afford.\n");
-						} else {
-							resourcePutInto.SetAll(-1);
-							p.marketCardToBuy = p.marketCursor;
-							p.marketCursor = 0;
-							for(int i = 0; i < p.marketCardToBuy; ++i) {
-								if(acquireBonus[i] == NULL) {
-									acquireBonus[i] = NEWMEM(List<int>(p.inventory.Length(), 0));
-								}
-							}
-							p.ui = ui_acquire;
-						}
-					}
-						break;
-				}
-			}	break;
-			case UserControl::ui_acquire: {
+				UpdateMarket(p, userInput, market, acquireBonus, resourcePutInto);
+				break;
+			case UserControl::ui_acquire:
 				printf("acquire card              ");
-				bool probablyPaidUp = p.marketCardToBuy == 0;
-				if(!probablyPaidUp) {
-					switch(userInput) {
-						case 'w':
-							if(resourcePutInto[p.marketCursor] == -1 && p.inventory[p.inventoryCursor] > 0) {
-								resourcePutInto[p.marketCursor] = p.inventoryCursor;
-								p.inventory[resourcePutInto[p.marketCursor]]--;
-								(*acquireBonus[p.marketCursor])[resourcePutInto[p.marketCursor]]++;
-							}
-							break;
-						case 'a':
-							if(resourcePutInto[p.marketCursor] == -1) {
-								int loopGuard = 0;
-								do {
-									p.inventoryCursor--;
-									if(p.inventoryCursor < 0) {
-										if(p.marketCursor > 0) {
-											p.marketCursor--;
-										} else {
-											p.marketCursor = p.marketCardToBuy-1;
-										}
-										p.inventoryCursor = p.inventory.Length()-1;
-									}
-									if(loopGuard++ > p.inventory.Length()*p.marketCardToBuy) {break;}
-								} while(p.inventory[p.inventoryCursor] == 0);
-							} else {
-								if(p.marketCursor > 0) p.marketCursor--;
-							}
-							break;
-						case 's':
-							if(resourcePutInto[p.marketCursor] != -1) {
-								(*acquireBonus[p.marketCursor])[resourcePutInto[p.marketCursor]]--;
-								p.inventory[resourcePutInto[p.marketCursor]]++;
-								resourcePutInto[p.marketCursor] = -1;
-							}
-							break;
-						case 'd':
-							if(resourcePutInto[p.marketCursor] == -1) {
-								int loopGuard = 0;
-								do {
-									p.inventoryCursor++;
-									if(p.inventoryCursor >= p.inventory.Length()) {
-										if(p.marketCursor < p.marketCardToBuy-1) {
-											p.marketCursor++;
-										} else {
-											p.marketCursor = 0;
-										}
-										p.inventoryCursor = 0;
-									}
-									if(loopGuard++ > p.inventory.Length()*p.marketCardToBuy) {break;}
-								} while(p.inventory[p.inventoryCursor] == 0);
-							} else {
-								if(p.marketCursor < p.marketCardToBuy-1) p.marketCursor++;
-							}
-							break;
-						case '\n': case '\r':
-							probablyPaidUp = true;
-							break;
-					}
-				}
-				if(p.marketCursor >= 0 && p.marketCursor < resourcePutInto.Length() && resourcePutInto[p.marketCursor] != -1) {
-					p.inventoryCursor = resourcePutInto[p.marketCursor];
-				}
-
-				bool paidUp = false;
-				if(probablyPaidUp) {
-					// check if all of the market positions before this one are paid
-					paidUp = true;
-					for(int i = 0; i < resourcePutInto.Length() && i < p.marketCardToBuy; ++i) {
-						if(resourcePutInto[i] == -1) { paidUp = false; break; }
-					}
-				}
-				if(paidUp) {
-					List<int>* bonus = acquireBonus[p.marketCardToBuy];
-					p.hand.Insert(0, market[p.marketCardToBuy]);
-					p.handPrediction.Copy(p.hand);
-					market.Shift(p.marketCardToBuy);
-					if(play_deck.Count() > 0) {
-						market[market.Length()-1] = play_deck.PopLast();
-					} else {
-						market[market.Length()-1] = NULL;
-					}
-					if(bonus != NULL) {
-						for(int i = 0; i < p.inventory.Length(); ++i) {
-							p.inventory[i] += (*bonus)[i];
-						}
-						DELMEM(bonus);
-					}
-					acquireBonus.Shift(p.marketCardToBuy);
-					acquireBonus[acquireBonus.Length()-1] = NULL;
-					p.marketCardToBuy = -1;
-					p.ui = UserControl::ui_cards;
-				}
-			}	break;
-			case UserControl::ui_upgrade: {
-				if(p.ui != p.lastState) {
-					p.inventoryPrediction.Copy(p.inventory);
-					p.upgradesMade = 0;
-				}
-				switch(userInput) {
-				case 'w':
-					if(p.upgradesMade < p.upgradeChoices && p.inventoryCursor < p.inventory.Length()-1 
-					&& p.inventoryPrediction[p.inventoryCursor] > 0) {
-						p.inventoryPrediction[p.inventoryCursor]--;
-						p.inventoryPrediction[p.inventoryCursor+1]++;
-						p.upgradesMade++;
-					}
-					break;
-				case 's':
-					if(p.upgradesMade > 0 && p.inventoryCursor > 0 
-					&& p.inventoryPrediction[p.inventoryCursor] > 0
-					&& p.inventory[p.inventoryCursor] < p.inventoryPrediction[p.inventoryCursor]) {
-						p.inventoryPrediction[p.inventoryCursor]--;
-						p.inventoryPrediction[p.inventoryCursor-1]++;
-						p.upgradesMade--;
-					}
-					break;
-				case 'a':
-					p.inventoryCursor--;
-					if(p.inventoryCursor<0) p.inventoryCursor = 0;
-					break;
-				case 'd':
-					p.inventoryCursor++;
-					if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
-					break;
-				case '\n': case '\r':
-					p.ui = UserControl::ui_hand;
-					p.inventory.Copy(p.inventoryPrediction);
-					p.upgradeChoices = 0;
-					p.upgradesMade = 0;
-					break;
-				}
-			}
+				UpdateAcquire(p, userInput, market, acquireBonus, resourcePutInto, play_deck);
+				break;
+			case UserControl::ui_upgrade:
+				UpdateUpgrade(p, userInput);
 				break;
 			case UserControl::ui_objectives:
-				switch(userInput) {
-					case 'a':
-						p.marketCursor--; if(p.marketCursor < 0) { p.marketCursor = 0; }
-						break;
-					case 'd':
-						p.marketCursor++; if(p.marketCursor >= achievements.Length()) { p.marketCursor = achievements.Length()-1; }
-						break;
-					case 's':
-						p.ui = UserControl::ui_cards;
-						break;
-					case '\n': case '\r': {
-						const Objective * o = achievements[p.marketCursor];
-						// determine costs
-						bool canAfford = true;
-						p.inventoryPrediction.Copy(p.inventory);
-						// check if the inventory has sufficient resources
-						for(int i = 0; i < o->input.length(); ++i) {
-							int resIndex = resourceIndex.Get(o->input[i]);
-							p.inventoryPrediction[resIndex]--;
-							if(p.inventoryPrediction[resIndex] < 0) {
-								canAfford = false;
-							}
-						}
-						// if the resources are there
-						if(canAfford) {
-							Objective userObj(*o);
-							// remove the resources from the inventory
-							p.inventory.Copy(p.inventoryPrediction);
-							// add the silver or gold status to the achievement if applicable (i==0&&hasGold>0)
-							if(p.marketCursor == 0 || p.marketCursor == 1) {
-								bool giveGold = false, giveSilver = false;
-								// mark that a gold or silver value has been achieved
-								if(p.marketCursor == 0) { giveGold = goldLeft > 0; }
-								if((p.marketCursor == 0 && goldLeft ==0)
-								|| (p.marketCursor == 1 && goldLeft > 0)) { giveSilver = silverLeft>0; }
-								if(giveGold){ goldLeft--; userObj.bonusPoints = 3; }
-								if(giveSilver){ silverLeft--; userObj.bonusPoints = 1; }
-							}
-							// add achievement to the player's achievements
-							p.achieved.Add(userObj);
-							// remove the achievement from the achievements list
-							achievements.Shift(p.marketCursor);
-							// pull an achievement from the deck
-							achievements[achievements.Length()-1] = achievement_deck.PopLast();
-						}
-					}
-				}
+				UpdateObjectiveBuy(p, userInput, goldLeft, silverLeft, achievements, achievement_deck);
 				break;
 			}
 			break;

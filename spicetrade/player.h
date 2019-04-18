@@ -39,7 +39,7 @@ class Player {
 	int upgradesMade = 0;
 
 	Player():validPrediction(PredictionState::none),ui(UserControl::ui_hand),
-		inventoryCursor(0),currentRow(0),marketCursor(0),
+		inventoryCursor(0),handOffset(0),currentRow(0),marketCursor(0),
 		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0){}
 
 	void Set(std::string name, int resourceCount) { 
