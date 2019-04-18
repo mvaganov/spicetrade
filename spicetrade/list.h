@@ -161,69 +161,85 @@ public:
 		}
 		return true;
 	}
+	// O(1)
 	void Clear(){count = 0;}
+	// ~O(1)
 	void SetCount(int count) {
 		EnsureCapacity(count);
 		this->count = count;
 	}
+	// ~O(1)
 	bool Add(const TYPE & value) {
 		if(!EnsureCapacity(count+1)) return false;
 		List<TYPE>::Set(count++, value);
 		return true;
 	}
+	// O(N)
 	bool Insert(const int index, TYPE & value) {
 		if(!EnsureCapacity(count+1)) return false;
 		++count;
 		for(int i = count-1; i > index; --i) {
 			Set(i, Get(i-1));
 		}
-		Set(index, value);
+		Set(index, value); // adds a single value
 		return true;
 	}
+	// O(n)
 	bool Insert(const int index, TYPE * value, int count) {
 		if(!EnsureCapacity(this->count+count)) return false;
 		this->count += count;
 		for(int i = this->count-1; i >= index+count; --i) {
 			Set(i, Get(i-count));
 		}
+		// adds a list of values
 		for(int i = 0; i < count; ++i) {
 			Set(index+i, value[i]);
 		}
 		return true;
 	}
+	// ~O(1)
 	TYPE * GetAdd(const TYPE & value) {
 		if(!EnsureCapacity(count+1)) return NULL;
 		List<TYPE>::Set(count, value);
 		count++;
 		return &Get(count-1);
 	}
+	// O(n)
 	void RemoveAt(const int index) {
 		for(int i = index; i < count-1; ++i) { Set(i, Get(i+1)); }
 		count--;
 	}
+	// O(n)
 	TYPE PopFirst() {
 		TYPE first = List<TYPE>::GetAt(0);
 		RemoveAt(0);
 		return first;
 	}
+	// O(1)
 	TYPE PopLast() {
 		count--;
 		return List<TYPE>::GetAt(count);
 	}
+	// O(1)
 	int Count() const {return count;}
+	// O(n)
 	int IndexOf(const TYPE & value, const int start, const int limit) const {
 		return List<TYPE>::IndexOf(value, start, limit);
 	}
+	// O(n)
 	int IndexOf(const TYPE & value) const { return IndexOf(value, 0, count); }
 	TYPE & Get(const int index) {
 		BOUNDSCHECK(index, count);
 		return List<TYPE>::Get(index);
 	}
+	// O(1)
 	void Set(const int index, TYPE value) {
 		BOUNDSCHECK(index, count);
 		List<TYPE>::Set(index, value);
 	}
+	// O(1)
 	TYPE & operator[](const int index) { return Get(index); }
+	// O(n log n)
 	void Sort() { List<TYPE>::quickSort(*this,0,Count()-1); }
 };
 

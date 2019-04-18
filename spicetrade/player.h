@@ -10,14 +10,29 @@
 class Player {
   public:
 	std::string name;
-	VList<Objective*> objectives;
+	VList<Objective> achieved;
 
-	VList<PlayAction*> hand;
-	VList<PlayAction*> played;
+	VList<const PlayAction*> hand;
+	VList<const PlayAction*> played;
 	List<int> inventory;
 
-	VList<PlayAction*> handPrediction;
-	VList<PlayAction*> playedPrediction;
+	VList<const PlayAction*> handPrediction;
+	VList<const PlayAction*> playedPrediction;
 	List<int> inventoryPrediction;
 
+	void Set(std::string name) { this->name = name; }
+	void Add(const PlayAction* actions, int count) {
+		for(int i = 0; i < count; ++i) {
+			hand.Add (&(actions[i]));
+		}
+	}
+	void Draw(VList<const PlayAction*> deck, int count = 1) {
+		for (int i = 0; i < count; ++i) {
+			hand.Add (deck.PopLast ());
+		}
+	}
+	void PredictionRestart() {
+		handPrediction.Copy(hand);
+		playedPrediction.Copy(played);
+	}
 };

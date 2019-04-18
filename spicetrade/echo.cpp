@@ -401,7 +401,7 @@ int clientLogic(SOCKET mySocket, const sockaddr* connectionAddress)
 int getReadStatus(const SOCKET a_socket)
 {
 	// zero seconds, zero milliseconds. max time select call allowd to block
-	static const timeval instantSpeedPlease = {0,0};
+	static timeval instantSpeedPlease = {0,0};
 	fd_set a = {1, {a_socket}};
 /*
 select returns the number of ready socket handles in the fd_set structure, zero if the time limit expired, or SOCKET_ERROR if an error occurred. WSAGetLastError can be used to retrieve a specific error code.
