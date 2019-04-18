@@ -47,17 +47,32 @@ class RBT {
 	struct Node {
 	  private:
 		void* value;   // User provided, used indirectly via RBT_node_cmp_f.
-	#define __HIDDENBIT 1
-	#ifndef __HIDDENBIT
-		int red; // Color red (1), black (0)
+		Node* _link[2]; // Link left [0] and right [1]
+	
+	// give the red/black mark a whole variable. this increases the size of the node by one alignment-width (sizeof(size_t))
+	#define __RB_VAR 0
+	// hide the red/black mark in the first link. this slows down all link traversal operations :(
+	#define __RB_LINK 1
+	// hide the red/black mark in the value. this requires that the value be a pointer :(
+	#define __RB_VALUE 2
+	#define __BIT_IN __RB_VAR
+
+	#if __BIT_IN == __RB_LINK
 	  public:
-		static bool isRed(const Node* self) { return (self->red); }
-		static void setRed(Node* self, bool value) {self->red = value;}
+		Node* link(const int right) { return (Node*)((size_t)(_link[right]) & (~((size_t)1))); }
+		void setlink(const int right, Node* n) {
+			if(!right){ bool r = (((size_t)_link[0]) & 1); _link[0] = (Node*)((size_t)n | (int)r); }
+			else{_link[right] = n;}
+		}
+		static bool isRed(const Node* self) { return (((size_t)self->_link[0]) & 1); }
+		static void setRed(Node* self, bool value) {
+			self->_link[0] = (Node*)(((size_t)self->_link[0]) | isRed(self));}
 		static void* getValue(const Node* self) { return (self->value); }
 		static void setValue(Node* self, void* value) { self->value = value; }
-	#else
+	#elif __BIT_IN == __RB_VALUE
 	  public:
-		static bool isRed(const Node* self) { return (((size_t)(self)->value) & 1); }
+		Node* link(const int right) { return _link[right]; }
+		void setlink(const int right, Node* n) { _link[right] = n; }		static bool isRed(const Node* self) { return (((size_t)(self)->value) & 1); }
 		static void setRed(Node* self, bool value) {
 			if(value){self->value=(void*)(((size_t)self->value)|1);}
 			else{self->value=(void*)(((size_t)self->value)&~((size_t)1));}
@@ -69,8 +84,17 @@ class RBT {
 			if(isRed(self)){(self)->value=(void*)(((size_t)(value))|1);}
 			else{(self)->value=(void*)(((size_t)(value))&~((size_t)1));}
 		}
+	#elif __BIT_IN == __RB_VAR
+		int red; // Color red (1), black (0)
+	  public:
+		Node* link(const int right) { return _link[right]; }
+		void setlink(const int right, Node* n) { _link[right] = n; }
+		static bool isRed(const Node* self) { return (self->red); }
+		static void setRed(Node* self, bool value) {self->red = value;}
+		static void* getValue(const Node* self) { return (self->value); }
+		static void setValue(Node* self, void* value) { self->value = value; }
 	#endif
-		Node* link[2]; // Link left [0] and right [1]
+
 		static Node* alloc () { return (Node*)malloc (sizeof (Node)); }
 		static Node* create (void* value) {
 			return Node::init (Node::alloc (), value);
@@ -78,7 +102,7 @@ class RBT {
 		static Node* init (Node* self, void* value) {
 			if (self) {
 				setRed(self, 1);
-				self->link[0] = self->link[1] = NULL;
+				self->setlink(0,NULL);self->setlink(1,NULL);//self->link[0] = self->link[1] = NULL;
 				setValue(self, value);//self->value = value;
 			}
 			return self;
@@ -92,10 +116,10 @@ class RBT {
 	  public:
 		// OOP convenience
 		Node () : value (0) {
-			#ifndef __HIDDENBIT
+			#ifndef __BIT_IN_VALUE
 			setRed(0);
 			#endif
-			link[0] = link[1] = NULL;
+			setlink(0,NULL);setlink(1,NULL);//link[0] = link[1] = NULL;
 		}
 		void init (void* value) { init (this); }
 		void dealloc () { dealloc (this); }
@@ -140,9 +164,9 @@ class RBT {
 				self->top = 0;
 				// Save the path for later selfersal
 				if (self->n != NULL) {
-					while (self->n->link[dir] != NULL) {
+					while (self->n->link(dir) != NULL) {
 						self->path[self->top++] = self->n;
-						self->n = self->n->link[dir];
+						self->n = self->n->link(dir);
 					}
 				}
 				result = self->n == NULL ? NULL : Node::getValue(self->n);//self->n->value;
@@ -152,13 +176,13 @@ class RBT {
 
 		// Traverse a red black tree in the user-specified direction (0 asc, 1 desc)
 		static void* move (iter* self, int dir) {
-			if (self->n->link[dir] != NULL) {
+			if (self->n->link(dir) != NULL) {
 				// Continue down this branch
 				self->path[self->top++] = self->n;
-				self->n = self->n->link[dir];
-				while (self->n->link[!dir] != NULL) {
+				self->n = self->n->link(dir);
+				while (self->n->link(!dir) != NULL) {
 					self->path[self->top++] = self->n;
-					self->n = self->n->link[!dir];
+					self->n = self->n->link(!dir);
 				}
 			} else {
 				// Move to the next branch
@@ -170,7 +194,7 @@ class RBT {
 					}
 					last = self->n;
 					self->n = self->path[--self->top];
-				} while (last == self->n->link[dir]);
+				} while (last == self->n->link(dir));
 			}
 			return self->n == NULL ? NULL : Node::getValue(self->n);//self->n->value;
 		}
@@ -250,14 +274,14 @@ class RBT {
 				Node* save = NULL;
 				// Rotate away the left links so that we can treat this like the destruction of a linked list
 				while (that) {
-					if (that->link[0] == NULL) { // No left links, just kill that node and move on
-						save = that->link[1];
+					if (that->link(0) == NULL) { // No left links, just kill that node and move on
+						save = that->link(1);
 						node_cb (self, that);
 						that = NULL;
 					} else { // Rotate away the left link and check again
-						save = that->link[0];
-						that->link[0] = save->link[1];
-						save->link[1] = that;
+						save = that->link(0);
+						that->setlink(0, save->link(1));
+						save->setlink(1, that);
 					}
 					that = save;
 				}
@@ -276,7 +300,7 @@ class RBT {
 			while (it) {
 				if ((cmp = self->cmp (self, it, &what))) {
 					// If tree supports duplicates, they should be chained to the right subtree for this to work
-					it = it->link[cmp < 0];
+					it = it->link(cmp < 0);
 				} else {
 					break;
 				}
@@ -307,25 +331,27 @@ class RBT {
 				// Set up our helpers
 				t = &head;
 				g = p = NULL;
-				q = t->link[1] = self->root;
+				t->setlink(1, self->root);
+				q = self->root;
 				// Search down the tree for a place to insert
 				while (1) {
 					if (q == NULL) {
 						// Insert node at the first null link.
-						p->link[dir] = q = what;
-					} else if (rb_node_is_red (q->link[0]) && rb_node_is_red (q->link[1])) {
+						p->setlink(dir, what); 
+						q = what;
+					} else if (rb_node_is_red (q->link(0)) && rb_node_is_red (q->link(1))) {
 						// Simple red violation: color flip
 						q->setRed (1);
-						q->link[0]->setRed (0);
-						q->link[1]->setRed (0);
+						q->link(0)->setRed (0);
+						q->link(1)->setRed (0);
 					}
 					if (rb_node_is_red (q) && rb_node_is_red (p)) {
 						// Hard red violation: rotations necessary
-						int dir2 = t->link[1] == g;
-						if (q == p->link[last]) {
-							t->link[dir2] = rb_node_rotate (g, !last);
+						int dir2 = t->link(1) == g;
+						if (q == p->link(last)) {
+							t->setlink(dir2, rb_node_rotate (g, !last));
 						} else {
-							t->link[dir2] = rb_node_rotate2 (g, !last);
+							t->setlink(dir2, rb_node_rotate2 (g, !last));
 						}
 					}
 					// Stop working if we inserted a node. This check also disallows duplicates in the tree
@@ -339,10 +365,10 @@ class RBT {
 						t = g;
 					}
 					g = p, p = q;
-					q = q->link[dir];
+					q = q->link(dir);
 				}
 				// Update the root (it may be different)
-				self->root = (head.link[1]);
+				self->root = (head.link(1));
 			}
 			// Make the root black for simplified logic
 			self->root->setRed (0);
@@ -382,42 +408,44 @@ class RBT {
 			// Set up our helpers
 			q = &head;
 			g = p = NULL;
-			q->link[1] = self->root;
+			q->setlink(1, self->root);
 			// Search and push a red node down to fix red violations as we go
-			while (q->link[dir] != NULL) {
+			while (q->link(dir) != NULL) {
 				int last = dir;
 				// Move the helpers down
 				g = p, p = q;
-				q = q->link[dir];
+				q = q->link(dir);
 				dir = self->cmp (self, q, &what) < 0;
 				// Save the node with matching value and keep going; we'll do removal tasks at the end
 				if (self->cmp (self, q, &what) == 0) {
 					f = q;
 				}
 				// Push the red node down with rotations and color flips
-				if (!rb_node_is_red (q) && !rb_node_is_red (q->link[dir])) {
-					if (rb_node_is_red (q->link[!dir])) {
-						p = p->link[last] = rb_node_rotate (q, dir);
-					} else if (!rb_node_is_red (q->link[!dir])) {
-						Node* s = p->link[!last];
+				if (!rb_node_is_red (q) && !rb_node_is_red (q->link(dir))) {
+					if (rb_node_is_red (q->link(!dir))) {
+						Node* n = rb_node_rotate (q, dir);
+						p->setlink(last, n);
+						p = n;
+					} else if (!rb_node_is_red (q->link(!dir))) {
+						Node* s = p->link(!last);
 						if (s) {
-							if (!rb_node_is_red (s->link[!last]) && !rb_node_is_red (s->link[last])) {
+							if (!rb_node_is_red (s->link(!last)) && !rb_node_is_red (s->link(last))) {
 								// Color flip
 								p->setRed (0);
 								s->setRed (1);
 								q->setRed (1);
 							} else {
-								int dir2 = g->link[1] == p;
-								if (rb_node_is_red (s->link[last])) {
-									g->link[dir2] = rb_node_rotate2 (p, last);
-								} else if (rb_node_is_red (s->link[!last])) {
-									g->link[dir2] = rb_node_rotate (p, last);
+								int dir2 = g->link(1) == p;
+								if (rb_node_is_red (s->link(last))) {
+									g->setlink(dir2, rb_node_rotate2 (p, last));
+								} else if (rb_node_is_red (s->link(!last))) {
+									g->setlink(dir2, rb_node_rotate (p, last));
 								}
 								// Ensure correct coloring
 								q->setRed (1);
-								g->link[dir2]->setRed (1);
-								g->link[dir2]->link[0]->setRed (0);
-								g->link[dir2]->link[1]->setRed (0);
+								g->link(dir2)->setRed (1);
+								g->link(dir2)->link(0)->setRed (0);
+								g->link(dir2)->link(1)->setRed (0);
 							}
 						}
 					}
@@ -428,14 +456,14 @@ class RBT {
 				void* tmp = Node::getValue(f);//f->value;
 				Node::setValue(f, Node::getValue(q));//f->value = q->value;
 				Node::setValue(q, tmp);//q->value = tmp;
-				p->link[p->link[1] == q] = q->link[q->link[0] == NULL];
+				p->setlink(p->link(1) == q, q->link(q->link(0) == NULL));
 				if (node_cb) {
 					node_cb (self, q);
 				}
 				q = NULL;
 			}
 			// Update the root (it may be different)
-			self->root = head.link[1];
+			self->root = head.link(1);
 			// Make the root black for simplified logic
 			if (self->root != NULL) {
 				self->root->setRed (1);
@@ -449,9 +477,9 @@ class RBT {
 	static Node* rb_node_rotate (Node* self, int dir) {
 		Node* result = NULL;
 		if (self) {
-			result = self->link[!dir];
-			self->link[!dir] = result->link[dir];
-			result->link[dir] = self;
+			result = self->link(!dir);
+			self->setlink(!dir, result->link(dir));
+			result->setlink(dir, self);
 			self->setRed (1);
 			result->setRed (0);
 		}
@@ -461,7 +489,7 @@ class RBT {
 	static Node* rb_node_rotate2 (Node* self, int dir) {
 		Node* result = NULL;
 		if (self) {
-			self->link[!dir] = rb_node_rotate (self->link[!dir], !dir);
+			self->setlink(!dir, rb_node_rotate (self->link(!dir), !dir));
 			result = rb_node_rotate (self, dir);
 		}
 		return result;
@@ -475,8 +503,8 @@ class RBT {
 		if (root == NULL)
 			return 1;
 		else {
-			Node* ln = root->link[0];
-			Node* rn = root->link[1];
+			Node* ln = root->link(0);
+			Node* rn = root->link(1);
 			// Consecutive red links
 			if (root->isRed ()) {
 				if (ln->isRed () || rn->isRed ()) {

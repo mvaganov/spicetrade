@@ -2,7 +2,7 @@
 #include "platform_conio.h"
 #include "resource.h"
 #include "objective.h"
-#include "tradecard.h"
+#include "playaction.h"
 // Raw Resources, Labor, Goods, Efficacy
 extern const ResourceType * g_resources;
 extern const int g_len_resources;

@@ -46,16 +46,9 @@ void print (std::string str) { CLI::printf ("%s", str.c_str ()); }
 void print (const char* str) { CLI::printf ("%s", str); }
 int clampint(int n, int mn, int mx) { return ((n<mn)?mn:((n>mx)?mx:n)); }
 
-Dictionary<char, const ResourceType*> resourceLookup;
-// code -> index-in-inventory
-Dictionary<char, int> resourceIndex;
 
-char ColorOfRes (char icon) {
-	const ResourceType* r = resourceLookup.Get (icon);
-	return (r == NULL) ? CLI::COLOR::LIGHT_GRAY : r->color;
-}
 
-void PrintAction (const PlayAction* a, int bg) {
+void PrintAction (Game*g, const PlayAction* a, int bg) {
 	int ofcolor = CLI::getFcolor (), obcolor = CLI::getBcolor ();
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
 
@@ -64,7 +57,7 @@ void PrintAction (const PlayAction* a, int bg) {
 	int leadSpace = width - str.length ();
 	for (int i = 0; i < leadSpace; ++i) { CLI::putchar (' '); }
 	for (int i = 0; i < str.length (); ++i) {
-		CLI::setColor (ColorOfRes (str[i]), bg);
+		CLI::setColor (g->ColorOfRes (str[i]), bg);
 		CLI::putchar (str[i]);
 	}
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
@@ -72,7 +65,7 @@ void PrintAction (const PlayAction* a, int bg) {
 	str = a->output;
 	leadSpace = width - str.length ();
 	for (int i = 0; i < str.length (); ++i) {
-		CLI::setColor (ColorOfRes (str[i]), bg);
+		CLI::setColor (g->ColorOfRes (str[i]), bg);
 		CLI::putchar (str[i]);
 	}
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
@@ -80,7 +73,7 @@ void PrintAction (const PlayAction* a, int bg) {
 	CLI::setColor (ofcolor, obcolor);
 }
 
-void PrintObjective (const Objective* o, int bg) {
+void PrintObjective (Game*g, const Objective* o, int bg) {
 	int ofcolor = CLI::getFcolor (), obcolor = CLI::getBcolor ();
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
 
@@ -89,7 +82,7 @@ void PrintObjective (const Objective* o, int bg) {
 	int leadSpace = (width - str.length ())/2;
 	for (int i = 0; i < leadSpace; ++i) { CLI::putchar (' '); }
 	for (int i = 0; i < str.length (); ++i) {
-		CLI::setColor (ColorOfRes (str[i]), bg);
+		CLI::setColor (g->ColorOfRes (str[i]), bg);
 		CLI::putchar (str[i]);
 	}
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
@@ -105,7 +98,7 @@ void PrintObjective (const Objective* o, int bg) {
 	CLI::setColor (ofcolor, obcolor);
 }
 
-bool SubtractResources (const PlayAction* card, List<int>& inventory) {
+bool SubtractResources (Game*g, const PlayAction* card, List<int>& inventory) {
 	std::string input = card->input;
 	if (input == "reset") {
 		return true;
@@ -116,7 +109,7 @@ bool SubtractResources (const PlayAction* card, List<int>& inventory) {
 		if (c == '.') {
 
 		} else {
-			int* index = resourceIndex.GetPtr (c);
+			int* index = g->resourceIndex.GetPtr (c);
 			if (index == NULL) {
 				printf ("can't afford imaginary resource %c\n", c);
 				valid = false;
@@ -137,13 +130,13 @@ bool InventoryValid(const List<int>& inventory) {
 	return valid;
 }
 
-bool CanPlay (const PlayAction* toPlay, List<int>& inventory) {
+bool CanPlay (Game*g, const PlayAction* toPlay, List<int>& inventory) {
 	List<int> testInventory (inventory); // TODO turn this into a static array and memcpy inventory?
-	SubtractResources (toPlay, testInventory);
+	SubtractResources (g, toPlay, testInventory);
 	return InventoryValid(testInventory);
 }
 
-void AddResources (int& upgradesToDo, const PlayAction* card, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played) {
+void AddResources (Game*g, int& upgradesToDo, const PlayAction* card, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played) {
 	std::string output = card->output;
 	if (output == "cards") {
 		hand.Insert (hand.Count (), played.GetData (), played.Count ());
@@ -154,7 +147,7 @@ void AddResources (int& upgradesToDo, const PlayAction* card, List<int>& invento
 			if (c == '+') {
 				upgradesToDo++;
 			} else {
-				int* index = resourceIndex.GetPtr (c);
+				int* index = g->resourceIndex.GetPtr (c);
 				if (index == NULL) {
 					printf ("no such resource %c\n", c);
 				} // <-- here comes the crash
@@ -164,31 +157,30 @@ void AddResources (int& upgradesToDo, const PlayAction* card, List<int>& invento
 	}
 }
 
-bool Calculate(int& upgradesToDo, VList<const PlayAction*>& hand, VList<const PlayAction*>& played,
+bool Calculate(Game*g, int& upgradesToDo, VList<const PlayAction*>& hand, VList<const PlayAction*>& played,
 	VList<int>& selected, List<int>& prediction) {
 	bool canAfford = true;
 	for(int i = 0; i < selected.Count(); ++i) {
 		const PlayAction* card = hand[selected[i]];
-		SubtractResources(card, prediction);
-		AddResources(upgradesToDo, card, prediction, hand, played);
+		SubtractResources(g, card, prediction);
+		AddResources(g, upgradesToDo, card, prediction, hand, played);
 		bool canDoIt = InventoryValid(prediction);
 		if(!canDoIt) { canAfford = false; }
 	}
 	return canAfford;
 }
 
-void RefreshPrediction(int& upgradesToDo, PredictionState& valid, VList<int>& selected, List<int>& inventory,
-	List<int>& prediction, VList<const PlayAction*>& predictionHand, VList<const PlayAction*>& predictionPlayed){
-	prediction.Copy(inventory);
-	if(selected.Count() == 0){
-		valid = PredictionState::none;
+void RefreshPrediction(Game*g, Player& p){
+	p.inventoryPrediction.Copy(p.inventory);
+	if(p.selected.Count() == 0){
+		p.validPrediction = PredictionState::none;
 	} else {
-		bool canAfford = Calculate(upgradesToDo, predictionHand, predictionPlayed, selected, prediction);
-		valid = canAfford?PredictionState::valid:PredictionState::invalid;
+		bool canAfford = Calculate(g, p.upgradeChoices, p.handPrediction, p.playedPrediction, p.selected, p.inventoryPrediction);
+		p.validPrediction = canAfford?PredictionState::valid:PredictionState::invalid;
 	}
 }
 
-void UpdateObjectiveBuy(Player& p, int userInput, int& goldLeft, int& silverLeft, List<const Objective*>& achievements, VList<const Objective*>& achievement_deck){
+void UpdateObjectiveBuy(Game*g, Player& p, int userInput, int& goldLeft, int& silverLeft, List<const Objective*>& achievements, VList<const Objective*>& achievement_deck){
 	switch(userInput) {
 	case 'a':
 		p.marketCursor--; if(p.marketCursor < 0) { p.marketCursor = 0; }
@@ -206,7 +198,7 @@ void UpdateObjectiveBuy(Player& p, int userInput, int& goldLeft, int& silverLeft
 		p.inventoryPrediction.Copy(p.inventory);
 		// check if the inventory has sufficient resources
 		for(int i = 0; i < o->input.length(); ++i) {
-			int resIndex = resourceIndex.Get(o->input[i]);
+			int resIndex = g->resourceIndex.Get(o->input[i]);
 			p.inventoryPrediction[resIndex]--;
 			if(p.inventoryPrediction[resIndex] < 0) {
 				canAfford = false;
@@ -431,7 +423,7 @@ void UpdateInventory(Player& p, int userInput) {
 	}
 }
 
-void UpdateHand (Player& p, int userInput, int count) {
+void UpdateHand (Game*g, Player& p, int userInput, int count) {
 	switch (userInput) {
 	case 'w':
 		p.currentRow--;
@@ -448,10 +440,11 @@ void UpdateHand (Player& p, int userInput, int count) {
 		break;
 	case 's':
 		p.currentRow++;
+		printf("%d\n", p.currentRow);
 		if (p.currentRow >= p.handOffset + count - 1) {
 			p.handOffset += p.currentRow - (p.handOffset + count) + 1;
 		}
-		if(p.handOffset+count > p.playedPrediction.Count () + p.playedPrediction.Count ()) {
+		if(p.handOffset+count > p.handPrediction.Count () + p.playedPrediction.Count ()) {
 			p.handOffset = p.handPrediction.Count () + p.playedPrediction.Count () - count;
 		}
 		if (p.currentRow >= p.handPrediction.Count () + p.playedPrediction.Count ()) {
@@ -465,7 +458,7 @@ void UpdateHand (Player& p, int userInput, int count) {
 			if(p.currentRow < p.handPrediction.Count()){
 				p.selected.Add (p.currentRow);
 				p.selectedMark.Set (p.currentRow, 1);
-				RefreshPrediction(p.upgradeChoices, p.validPrediction, p.selected, p.inventory, p.inventoryPrediction, p.handPrediction, p.playedPrediction);
+				RefreshPrediction(g, p);
 				if(p.upgradeChoices != 0) { p.ui = UserControl::ui_upgrade; } // TODO add code to make the inventory numbers show up, and the upgrade message too.
 			}
 		}
@@ -482,7 +475,7 @@ void UpdateHand (Player& p, int userInput, int count) {
 				p.playedPrediction.Copy(p.played);
 				// TODO remove cards from unplayed (index > hand.Count()) from selected and selectedMark
 			}
-			RefreshPrediction(p.upgradeChoices, p.validPrediction, p.selected, p.inventory, p.inventoryPrediction, p.handPrediction, p.playedPrediction);
+			RefreshPrediction(g, p);
 		}
 	} break;
 	case '\n':
@@ -522,10 +515,10 @@ void UpdateHand (Player& p, int userInput, int count) {
 			if (p.currentRow >= 0 && p.currentRow < p.hand.Count ()) {
 				const PlayAction* toPlay = p.hand[p.currentRow];
 				printf("   %s   \n",toPlay->input.c_str());
-				bool canDoIt = CanPlay (toPlay, p.inventory);
+				bool canDoIt = CanPlay (g, toPlay, p.inventory);
 				if (canDoIt) {
-					SubtractResources (toPlay, p.inventory);
-					AddResources (p.upgradeChoices, toPlay, p.inventory, p.hand, p.played);
+					SubtractResources (g, toPlay, p.inventory);
+					AddResources (g, p.upgradeChoices, toPlay, p.inventory, p.hand, p.played);
 					if(p.upgradeChoices != 0) { p.ui = UserControl::ui_upgrade; }
 					p.hand.RemoveAt (p.currentRow);
 					if (toPlay->output == "cards") {
@@ -542,7 +535,7 @@ void UpdateHand (Player& p, int userInput, int count) {
 	}
 }
 
-void PrintHand (Coord pos, int count, Player& p) {
+void PrintHand (Game*g, Coord pos, int count, Player& p) {
 	CLI::setColor(-1,-1);
 	int limit = p.hand.Count () + p.played.Count ();
 	int extraSpaces = count - (limit - p.handOffset);
@@ -572,13 +565,13 @@ void PrintHand (Coord pos, int count, Player& p) {
 			card = p.played[i - p.hand.Count ()];
 			bg = CLI::COLOR::BLACK;
 		}
-		PrintAction (card, bg);
+		PrintAction (g, card, bg);
 		if (isSelected) {
 			int selectedIndex = p.selected.IndexOf (i);
 			CLI::printf ("%2d", selectedIndex);
 		} else {
 			CLI::putchar((p.ui == UserControl::ui_hand && i == p.currentRow)?(!isplayed?'<':'x'):' ');
-			if (CanPlay (card, p.inventory)) {
+			if (CanPlay (g, card, p.inventory)) {
 				print (" .");
 			} else {
 				print ("  ");
@@ -647,7 +640,7 @@ void PrintResourcesInventory(Coord cursor, Player& p,
 
 }
 
-void PrintAchievements(Coord cursor, const List<const Objective*>& achievements, List<const Player*>& players){
+void PrintAchievements(Game*g, Coord cursor, const List<const Objective*>& achievements, List<const Player*>& players){
 	for(int i = 0; i < achievements.Length(); ++i) {
 		CLI::move(cursor);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
@@ -660,7 +653,7 @@ void PrintAchievements(Coord cursor, const List<const Objective*>& achievements,
 		}
 		putchar((p)?'>':' ');
 		const Objective* o = achievements[i];
-		PrintObjective(o, CLI::COLOR::BLACK);
+		PrintObjective(g, o, CLI::COLOR::BLACK);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
 		putchar((p)?'<':' ');
 		cursor.y++;
@@ -678,8 +671,8 @@ void PrintAchievements(Coord cursor, const List<const Objective*>& achievements,
 	}
 }
 
-void PrintMarket(Coord cursor, List<const PlayAction*>& market, List<const Player*>& players, 
-	List<List<int>*>& acquireBonus, List<int>& resourcePutInto, const VList<const ResourceType*>& collectableResources) {
+void PrintMarket(Game*g, Coord cursor, List<const PlayAction*>& market, List<const Player*>& players, 
+	List<List<int>*>& acquireBonus, List<int>& resourcePutInto) {
 	const Player* currentPlayer = players[0];
 	int totalResources = currentPlayer->inventory.Sum();
 	for(int i = 0; i < market.Length(); ++i) {
@@ -694,7 +687,7 @@ void PrintMarket(Coord cursor, List<const PlayAction*>& market, List<const Playe
 			}
 		}
 		putchar((p)?'>':' ');
-		PrintAction(market[i], (totalResources >= i)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK);
+		PrintAction(g, market[i], (totalResources >= i)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
 		putchar((p)?'<':' ');
 		cursor.y++;
@@ -705,7 +698,8 @@ void PrintMarket(Coord cursor, List<const PlayAction*>& market, List<const Playe
 			if(currentPlayer && i < currentPlayer->marketCardToBuy && resourcePutInto[i] == -1) {
 				background = CLI::COLOR::RED;
 			}
-			PrintInventory(background, 1, (p != NULL && currentPlayer->ui == UserControl::ui_acquire), *(acquireBonus[i]), collectableResources, cursor, 
+			PrintInventory(background, 1, (p != NULL && currentPlayer->ui == UserControl::ui_acquire), *(acquireBonus[i]), 
+				g->collectableResources, cursor, 
 				(p && i < currentPlayer->marketCardToBuy)?currentPlayer->inventoryCursor:-1);
 			CLI::setColor(CLI::COLOR::WHITE, -1);
 		} else {
@@ -740,20 +734,11 @@ void PrintUserState(Coord cursor, const Player & p) {
 int main (int argc, const char** argv) {
 	for (int i = 0; i < argc; ++i) { printf ("[%d] %s\n", i, argv[i]); }
 
-	VList<const ResourceType*> collectableResources;
-	for (int i = 0; i < g_len_resources; ++i) {
-		resourceLookup.Set (g_resources[i].icon, &(g_resources[i]));
-		if (g_resources[i].type == ResourceType::Type::resource) {
-			collectableResources.Add (&(g_resources[i]));
-			resourceIndex.Set (g_resources[i].icon, i);
-		}
-	}
+	Game g(1, CLI::getWidth (), 25);
 
-	Dictionary<std::string, const PlayAction*> actionDeck;
 	VList<const PlayAction*> play_deck;
 	play_deck.EnsureCapacity(g_len_play_deck);
 	for (int i = 0; i < g_len_play_deck; ++i) {
-		actionDeck.Set (g_play_deck[i].input, &(g_play_deck[i]));
 		play_deck.Add (&(g_play_deck[i]));
 	}
 	VList<const Objective*> achievement_deck;
@@ -762,11 +747,9 @@ int main (int argc, const char** argv) {
 		achievement_deck.Add (&(g_objective[i]));
 	}
 
-	printf ("%d possible actions\n", actionDeck.Count ());
-
 	platform_shuffle (play_deck.GetData (), 0, play_deck.Count ());
 	Player p;
-	p.Set("Mr. V", collectableResources.Count ());
+	p.Set("Mr. V", g.collectableResources.Count ());
 	const int marketCards = 6;
 	const int achievementCards = 5;
 	List<const PlayAction*> market(marketCards);
@@ -805,10 +788,10 @@ int main (int argc, const char** argv) {
 	List<const Player*> playerUIOrder(1); // TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
 	playerUIOrder[0] = &p;
 	while (running) {
-		PrintHand (Coord(1,9), count, p);
-		PrintAchievements(Coord(1,2), achievements, playerUIOrder);
-		PrintMarket(Coord(1,6), market, playerUIOrder, acquireBonus, resourcePutInto, collectableResources);
-		PrintResourcesInventory(Coord(1,20), p, collectableResources, maxInventory);
+		PrintHand (&g, Coord(1,9), count, p);
+		PrintAchievements(&g, Coord(1,2), achievements, playerUIOrder);
+		PrintMarket(&g, Coord(1,6), market, playerUIOrder, acquireBonus, resourcePutInto);
+		PrintResourcesInventory(Coord(1,20), p, g.collectableResources, maxInventory);
 		PrintUserState(Coord(1,23), p);
 
 		// input
@@ -825,7 +808,7 @@ int main (int argc, const char** argv) {
 			switch(p.ui) {
 			case UserControl::ui_hand:
 				printf("hand management        ");
-				UpdateHand (p, userInput, count);
+				UpdateHand (&g, p, userInput, count);
 				// on hand exit, clear p.selected, reset predictions to current state
 				break;
 			case UserControl::ui_inventory:
@@ -845,7 +828,7 @@ int main (int argc, const char** argv) {
 				UpdateUpgrade(p, userInput);
 				break;
 			case UserControl::ui_objectives:
-				UpdateObjectiveBuy(p, userInput, goldLeft, silverLeft, achievements, achievement_deck);
+				UpdateObjectiveBuy(&g, p, userInput, goldLeft, silverLeft, achievements, achievement_deck);
 				break;
 			}
 			break;

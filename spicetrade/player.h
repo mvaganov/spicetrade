@@ -3,7 +3,7 @@
 #include "objective.h"
 #include "rbtree.h"
 #include "resource.h"
-#include "tradecard.h"
+#include "playaction.h"
 #include <string>
 #include "dictionary.h"
 

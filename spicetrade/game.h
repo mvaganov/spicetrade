@@ -22,6 +22,28 @@ class Game
 
 public:
 	List<Player> players;
+
+	Dictionary<char, const ResourceType*> resourceLookup;
+	// code -> index-in-inventory
+	Dictionary<char, int> resourceIndex;
+	VList<const ResourceType*> collectableResources;
+
+
+	void init() {
+		for (int i = 0; i < g_len_resources; ++i) {
+			resourceLookup.Set (g_resources[i].icon, &(g_resources[i]));
+			if (g_resources[i].type == ResourceType::Type::resource) {
+				collectableResources.Add (&(g_resources[i]));
+				resourceIndex.Set (g_resources[i].icon, i);
+			}
+		}
+	}
+
+	char ColorOfRes (char icon) {
+		const ResourceType* r = resourceLookup.Get (icon);
+		return (r == NULL) ? CLI::COLOR::LIGHT_GRAY : r->color;
+	}
+
 	/** @return whether or not the game wants to keep running */
 	bool isRunning(){return m_running;}
 	/** get a color for a frame-dependent color animation */
@@ -57,18 +79,23 @@ public:
 		}
 	}
 
-	void initStateMachine();
+	void initStateMachine(){}
 
-	Game(int numPlayers, int width, int height);
-	void release();
+	Game(int numPlayers, int width, int height){
+		init();
+	}
+	void release(){}
 	~Game(){release();}
 
-	void draw(Graphics * g);
+	void draw(Graphics * g){}
 
-	void setInput(int a_input);
-	void processInput();
+	void setInput(int a_input){ userInput=a_input; }
+	void processInput(){
+		// figure out which player the input is for
+		// route the input to the right player
+	}
 
-	bool isAcceptingInput(){
+	bool isAcceptingInput() {
 		GameState * state = m_stateQueue->Peek();
 		return !state->isDone();
 	}
