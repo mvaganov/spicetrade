@@ -55,12 +55,12 @@ class Dictionary {
 	}
 	// auto is used here because C++ has weird ineractions with template-argumented sub-types
 	static void RBNodeDelete_KVP (RBTKV* self, RBTKV::Node* node) {
-		FreeKVP ((KVP*)node->value);
+		FreeKVP ((KVP*)node->getValue());
 	}
 
 	static int RBNodeCompare_KVP (RBTKV* self, RBTKV::Node* a, RBTKV::Node* b) {
-		KVP* ka = (KVP*)a->value;
-		KVP* kb = (KVP*)b->value;
+		KVP* ka = (KVP*)a->getValue();
+		KVP* kb = (KVP*)b->getValue();
 		if (ka->key < kb->key)
 			return -1;
 		if (ka->key > kb->key)

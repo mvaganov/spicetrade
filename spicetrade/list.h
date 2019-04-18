@@ -74,7 +74,7 @@ public:
 		BOUNDSCHECK(index, length);
 		return data[index];
 	}
-	TYPE GetAt(const int index) const {
+	TYPE GetConst(const int index) const {
 		BOUNDSCHECK(index, length);
 		return data[index];
 	}
@@ -97,6 +97,7 @@ public:
 		Shift(data, start, (limitIndex < 0)?length:limitIndex, direction);
 	}
 	TYPE & operator[](const int index) { return Get(index); }
+	TYPE operator[](const int index) const { return GetConst(index); }
 	void VectorAddition(List<TYPE>& toAdd) {
 		for(int i = 0; i < length; ++i) {
 			data[i] += toAdd.data[i];
@@ -153,6 +154,14 @@ public:
 	}
 	VList(const int capacity):count(0),List<TYPE>::List(capacity){}
 	TYPE * GetData() { return List<TYPE>::GetData(); }
+	TYPE & Get(const int index) {
+		BOUNDSCHECK(index, count);
+		return List<TYPE>::Get(index);
+	}
+	TYPE GetConst(const int index) const {
+		BOUNDSCHECK(index, count);
+		return List<TYPE>::GetConst(index);
+	}
 	bool EnsureCapacity(int size) {
 		if(size >= this->Length()) {
 			int newLength = this->Length();
@@ -211,14 +220,14 @@ public:
 	}
 	// O(n)
 	TYPE PopFirst() {
-		TYPE first = List<TYPE>::GetAt(0);
+		TYPE first = List<TYPE>::GetConst(0);
 		RemoveAt(0);
 		return first;
 	}
 	// O(1)
 	TYPE PopLast() {
 		count--;
-		return List<TYPE>::GetAt(count);
+		return List<TYPE>::GetConst(count);
 	}
 	// O(1)
 	int Count() const {return count;}
@@ -228,10 +237,6 @@ public:
 	}
 	// O(n)
 	int IndexOf(const TYPE & value) const { return IndexOf(value, 0, count); }
-	TYPE & Get(const int index) {
-		BOUNDSCHECK(index, count);
-		return List<TYPE>::Get(index);
-	}
 	// O(1)
 	void Set(const int index, TYPE value) {
 		BOUNDSCHECK(index, count);
@@ -239,6 +244,7 @@ public:
 	}
 	// O(1)
 	TYPE & operator[](const int index) { return Get(index); }
+	TYPE operator[](const int index) const { return GetConst(index); }
 	// O(n log n)
 	void Sort() { List<TYPE>::quickSort(*this,0,Count()-1); }
 };
@@ -310,7 +316,7 @@ public:
 		int found = -1, rowlimit = pageSize, lastRow = limit/pageSize;
 		for(int row = divresult.quot; row < pages.Count(); ++row) {
 			if(row == lastRow) { rowlimit = limit - pageSize*row; }
-			found = List<TYPE>::IndexOf(value, pages.GetAt(row), start, rowlimit);
+			found = List<TYPE>::IndexOf(value, pages[row], start, rowlimit);
 			if(found != -1){
 				found += row*pageSize;
 				return found;
@@ -325,12 +331,18 @@ public:
 		div_t divresult = div (index,pageSize);
 		return pages.Get(divresult.quot)[divresult.rem];
 	}
+	TYPE GetConst(const int index) const {
+		BOUNDSCHECK(index, count);
+		div_t divresult = div (index,pageSize);
+		return pages.Get(divresult.quot)[divresult.rem];
+	}
 	void Set(const int index, TYPE value) {
 		BOUNDSCHECK(index, count);
 		div_t divresult = div (index,pageSize);
 		pages.Get(divresult.quot)[divresult.rem] = value;
 	}
 	TYPE & operator[](const int index) { return Get(index); }
+	TYPE operator[](const int index) const { return GetConst(index); }
 	void Sort() { List<TYPE>::quickSort(*this,0,Count()-1); }
 };
 

@@ -1,3 +1,4 @@
+#pragma once
 #include "platform_conio.h"
 #include "list.h"
 #include "cards.h"

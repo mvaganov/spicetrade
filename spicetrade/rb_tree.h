@@ -43,22 +43,43 @@
 //template<class KEY, class VAL>
 class RBT {
   public:
+	// this RBTree Node has notably no parent pointer, and optionally will fold the red/black bit into the value left pointer.
 	struct Node {
 	  private:
-		int red; // Color red (1), black (0)
-
-	  public:
-		Node* link[2]; // Link left [0] and right [1]
 		void* value;   // User provided, used indirectly via RBT_node_cmp_f.
+	#define __HIDDENBIT 1
+	#ifndef __HIDDENBIT
+		int red; // Color red (1), black (0)
+	  public:
+		static bool isRed(const Node* self) { return (self->red); }
+		static void setRed(Node* self, bool value) {self->red = value;}
+		static void* getValue(const Node* self) { return (self->value); }
+		static void setValue(Node* self, void* value) { self->value = value; }
+	#else
+	  public:
+		static bool isRed(const Node* self) { return (((size_t)(self)->value) & 1); }
+		static void setRed(Node* self, bool value) {
+			if(value){self->value=(void*)(((size_t)self->value)|1);}
+			else{self->value=(void*)(((size_t)self->value)&~((size_t)1));}
+		}
+		static void* getValue(const Node* self) {
+			return ((void*)(((size_t)self->value) & ~1));
+		}
+		static void setValue(Node* self, void* value) {
+			if(isRed(self)){(self)->value=(void*)(((size_t)(value))|1);}
+			else{(self)->value=(void*)(((size_t)(value))&~((size_t)1));}
+		}
+	#endif
+		Node* link[2]; // Link left [0] and right [1]
 		static Node* alloc () { return (Node*)malloc (sizeof (Node)); }
 		static Node* create (void* value) {
 			return Node::init (Node::alloc (), value);
 		}
 		static Node* init (Node* self, void* value) {
 			if (self) {
-				self->setRed (1);
+				setRed(self, 1);
 				self->link[0] = self->link[1] = NULL;
-				self->value = value;
+				setValue(self, value);//self->value = value;
 			}
 			return self;
 		}
@@ -68,20 +89,26 @@ class RBT {
 			}
 		}
 
-	  private:
 	  public:
 		// OOP convenience
-		Node () : red (0), value (0) { link[0] = link[1] = NULL; }
+		Node () : value (0) {
+			#ifndef __HIDDENBIT
+			setRed(0);
+			#endif
+			link[0] = link[1] = NULL;
+		}
 		void init (void* value) { init (this); }
 		void dealloc () { dealloc (this); }
 
-		void setRed (bool red) { this->red = red; }
-		bool isRed () const { return this->red; }
+		bool  isRed () const { return isRed(this); }
+		void  setRed (bool red) { setRed(this, red); }
+		void* getValue() const { return getValue(this); }
+		void  setValue(void* value) { setValue(this, value); }
 	};
 	struct iter {
 		RBT* tree;
 		Node* n;                        // Current node
-		Node* path[RB_ITER_MAX_HEIGHT]; // Traversal path
+		Node* path[RB_ITER_MAX_HEIGHT]; // Traversal path. kept track of because there's no parent node
 		size_t top;                     // Top of stack
 		void* info;                     // User provided, not used by rb_iter.
 
@@ -118,7 +145,7 @@ class RBT {
 						self->n = self->n->link[dir];
 					}
 				}
-				result = self->n == NULL ? NULL : self->n->value;
+				result = self->n == NULL ? NULL : Node::getValue(self->n);//self->n->value;
 			}
 			return result;
 		}
@@ -145,7 +172,7 @@ class RBT {
 					self->n = self->path[--self->top];
 				} while (last == self->n->link[dir]);
 			}
-			return self->n == NULL ? NULL : self->n->value;
+			return self->n == NULL ? NULL : Node::getValue(self->n);//self->n->value;
 		}
 
 	  public:
@@ -191,7 +218,8 @@ class RBT {
 	void* info; // User provided, not used by RBT.
 
 	static int node_cmp_ptr_cb (RBT* self, Node* a, Node* b) {
-		return (a->value > b->value) - (a->value < b->value);
+		void* va = a->getValue(), * vb = b->getValue();
+		return (va > vb) - (va < vb);
 	}
 
 	static void node_dealloc_cb (RBT* self, Node* node) {
@@ -242,7 +270,7 @@ class RBT {
 		void* result = NULL;
 		if (self) {
 			Node what;
-			what.value = value;
+			Node::setValue(&what, value);//what.value = value;
 			Node* it = self->root;
 			int cmp = 0;
 			while (it) {
@@ -253,7 +281,8 @@ class RBT {
 					break;
 				}
 			}
-			result = it ? it->value : NULL;
+			result = it ? Node::getValue(it) //it->value
+				: NULL;
 		}
 		return result;
 	}
@@ -346,7 +375,7 @@ class RBT {
 		if (self->root != NULL) {
 			Node head; // False tree root
 			Node what; // Value wrapper node
-			what.value = value;
+			Node::setValue(&what,value);//what.value = value;
 			Node *q, *p, *g; // Helpers
 			Node* f = NULL;  // Found item
 			int dir = 1;
@@ -396,9 +425,9 @@ class RBT {
 			}
 			// Replace and remove the saved node
 			if (f) {
-				void* tmp = f->value;
-				f->value = q->value;
-				q->value = tmp;
+				void* tmp = Node::getValue(f);//f->value;
+				Node::setValue(f, Node::getValue(q));//f->value = q->value;
+				Node::setValue(q, tmp);//q->value = tmp;
 				p->link[p->link[1] == q] = q->link[q->link[0] == NULL];
 				if (node_cb) {
 					node_cb (self, q);
