@@ -1,5 +1,4 @@
-#ifndef __platform_random
-#define __platform_random
+#pragma once
 
 #ifdef _WIN32
 #	include <time.h>
@@ -109,4 +108,3 @@ inline void platform_shuffle (TYPE* data, const int start, const int limit) {
 		data[j] = temp;
 	}
 }
-#endif

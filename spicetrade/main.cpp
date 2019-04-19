@@ -53,7 +53,7 @@ void PrintAction (Game*g, const PlayAction* a, int bg) {
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
 
 	const int width = 5;
-	std::string str = a->input;
+	std::string str = a?a->input:"";
 	int leadSpace = width - str.length ();
 	for (int i = 0; i < leadSpace; ++i) { CLI::putchar (' '); }
 	for (int i = 0; i < str.length (); ++i) {
@@ -62,7 +62,7 @@ void PrintAction (Game*g, const PlayAction* a, int bg) {
 	}
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
 	CLI::putchar (':');
-	str = a->output;
+	str = a?a->output:"";
 	leadSpace = width - str.length ();
 	for (int i = 0; i < str.length (); ++i) {
 		CLI::setColor (g->ColorOfRes (str[i]), bg);
@@ -78,7 +78,7 @@ void PrintObjective (Game*g, const Objective* o, int bg) {
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
 
 	const int width = 8;
-	std::string str = o->input;
+	std::string str = o?o->input:"";
 	int leadSpace = (width - str.length ())/2;
 	for (int i = 0; i < leadSpace; ++i) { CLI::putchar (' '); }
 	for (int i = 0; i < str.length (); ++i) {
@@ -88,7 +88,7 @@ void PrintObjective (Game*g, const Objective* o, int bg) {
 	CLI::setColor (CLI::COLOR::LIGHT_GRAY, bg);
 	// CLI::putchar (':');
 	// str = a->output;
-	leadSpace = width - str.length ();
+	leadSpace = width - (leadSpace + str.length ());
 	// for (int i = 0; i < str.length (); ++i) {
 	// 	CLI::setColor (ColorOfRes (str[i]), bg);
 	// 	CLI::putchar (str[i]);
@@ -99,6 +99,7 @@ void PrintObjective (Game*g, const Objective* o, int bg) {
 }
 
 bool SubtractResources (Game*g, const PlayAction* card, List<int>& inventory) {
+	if(card == NULL) return false;
 	std::string input = card->input;
 	if (input == "reset") {
 		return true;
@@ -131,12 +132,14 @@ bool InventoryValid(const List<int>& inventory) {
 }
 
 bool CanPlay (Game*g, const PlayAction* toPlay, List<int>& inventory) {
+	if(toPlay == NULL) return false;
 	List<int> testInventory (inventory); // TODO turn this into a static array and memcpy inventory?
 	SubtractResources (g, toPlay, testInventory);
 	return InventoryValid(testInventory);
 }
 
 void AddResources (Game*g, int& upgradesToDo, const PlayAction* card, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played) {
+	if(card == NULL) return;
 	std::string output = card->output;
 	if (output == "cards") {
 		hand.Insert (hand.Count (), played.GetData (), played.Count ());
@@ -193,18 +196,21 @@ void UpdateObjectiveBuy(Game*g, Player& p, int userInput, int& goldLeft, int& si
 		break;
 	case '\n': case '\r': {
 		const Objective * o = achievements[p.marketCursor];
-		// determine costs
-		bool canAfford = true;
-		p.inventoryPrediction.Copy(p.inventory);
-		// check if the inventory has sufficient resources
-		for(int i = 0; i < o->input.length(); ++i) {
-			int resIndex = g->resourceIndex.Get(o->input[i]);
-			p.inventoryPrediction[resIndex]--;
-			if(p.inventoryPrediction[resIndex] < 0) {
-				canAfford = false;
+		printf("A\n");
+		// determine costs (if the objective is there)
+		bool canAfford = o != NULL;
+		if(canAfford) {
+			p.inventoryPrediction.Copy(p.inventory);
+			// check if the inventory has sufficient resources
+			for(int i = 0; i < o->input.length(); ++i) {
+				int resIndex = g->resourceIndex.Get(o->input[i]);
+				p.inventoryPrediction[resIndex]--;
+				if(p.inventoryPrediction[resIndex] < 0) {
+					canAfford = false;
+				}
 			}
 		}
-		// if the resources are there
+		// if the resources are there to pay the cost
 		if(canAfford) {
 			Objective userObj(*o);
 			// remove the resources from the inventory
@@ -224,10 +230,12 @@ void UpdateObjectiveBuy(Game*g, Player& p, int userInput, int& goldLeft, int& si
 			// remove the achievement from the achievements list
 			achievements.Shift(p.marketCursor);
 			// pull an achievement from the deck
-			achievements[achievements.Length()-1] = achievement_deck.PopLast();
+			achievements[achievements.Length()-1] = (achievement_deck.Count() > 0)
+				?achievement_deck.PopLast() : NULL;
+			printf("SETTING ONE TO NULL\n");
 		}
 	}
-}
+	}
 }
 
 void UpdateUpgrade(Player& p, int userInput) {
@@ -270,7 +278,7 @@ void UpdateUpgrade(Player& p, int userInput) {
 	}
 }
 
-void UpdateAcquire(Player& p, int userInput, List<const PlayAction*>& market, List<List<int>*>& acquireBonus, 
+void UpdateAcquireMarket(Player& p, int userInput, List<const PlayAction*>& market, List<List<int>*>& acquireBonus, 
 	List<int>& resourcePutInto, VList<const PlayAction*>& play_deck){
 	bool probablyPaidUp = p.marketCardToBuy == 0;
 	if(!probablyPaidUp) {
@@ -349,11 +357,7 @@ void UpdateAcquire(Player& p, int userInput, List<const PlayAction*>& market, Li
 		p.hand.Insert(0, market[p.marketCardToBuy]);
 		p.handPrediction.Copy(p.hand);
 		market.Shift(p.marketCardToBuy);
-		if(play_deck.Count() > 0) {
-			market[market.Length()-1] = play_deck.PopLast();
-		} else {
-			market[market.Length()-1] = NULL;
-		}
+		market[market.Length()-1] = (play_deck.Count() > 0)?play_deck.PopLast():NULL;
 		if(bonus != NULL) {
 			for(int i = 0; i < p.inventory.Length(); ++i) {
 				p.inventory[i] += (*bonus)[i];
@@ -383,9 +387,10 @@ void UpdateMarket(Player& p, int userInput, List<const PlayAction*>& market, Lis
 		break;
 	case '\n': case '\r': {
 		int total = p.inventory.Sum();
-		if(total < p.marketCursor) {
+		if(total < p.marketCursor || market[p.marketCursor] == NULL) {
 			printf("too expensive, cannot afford.\n");
 		} else {
+			printf("0x%08x", market[p.marketCursor]);
 			resourcePutInto.SetAll(-1);
 			p.marketCardToBuy = p.marketCursor;
 			p.marketCursor = 0;
@@ -640,7 +645,7 @@ void PrintResourcesInventory(Coord cursor, Player& p,
 
 }
 
-void PrintAchievements(Game*g, Coord cursor, const List<const Objective*>& achievements, List<const Player*>& players){
+void PrintAchievements(Game*g, Coord cursor, const List<const Objective*>& achievements, const List<Player*>& players){
 	for(int i = 0; i < achievements.Length(); ++i) {
 		CLI::move(cursor);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
@@ -660,18 +665,22 @@ void PrintAchievements(Game*g, Coord cursor, const List<const Objective*>& achie
 		CLI::move(cursor);
 		CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1);
 		if(i > 1) {CLI::putchar(' ');}
-		CLI::printf("   %d", o->points);
-		if(i == 0) {
+		CLI::printf("   %d", o?o->points:0);
+		if(i == 0 && g->goldLeft > 0) {
 			CLI::setColor(CLI::COLOR::BRIGHT_YELLOW, -1); CLI::printf(" +3");
-		} else if(i == 1) {
+		} else if(
+			((i == 1 && g->goldLeft > 0) 
+		|| (i == 0 && g->goldLeft == 0)) && g->silverLeft > 0) {
 			CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1); CLI::printf(" +1");
+		} else {
+			CLI::setColor(-1, -1); CLI::printf("   ");
 		}
 		cursor.y--;
 		cursor.x += 14;
 	}
 }
 
-void PrintMarket(Game*g, Coord cursor, List<const PlayAction*>& market, List<const Player*>& players, 
+void PrintMarket(Game*g, Coord cursor, List<const PlayAction*>& market, const List<Player*>& players, 
 	List<List<int>*>& acquireBonus, List<int>& resourcePutInto) {
 	const Player* currentPlayer = players[0];
 	int totalResources = currentPlayer->inventory.Sum();
@@ -721,8 +730,8 @@ void PrintUserState(Coord cursor, const Player & p) {
 	for(int i = 0; i < p.achieved.Count(); ++i) {
 		CLI::move (cursor);
 		int pts = p.achieved[i].bonusPoints;
-		char f = (pts == 3)?CLI::COLOR::BRIGHT_YELLOW:(pts == 1)?CLI::COLOR::WHITE:CLI::COLOR::DARK_GRAY;
-		char b = (pts == 3)?CLI::COLOR::YELLOW:       (pts == 1)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK;
+		char f = (pts == 3)?CLI::COLOR::BRIGHT_YELLOW:(pts == 1)?CLI::COLOR::WHITE    :CLI::COLOR::LIGHT_GRAY;
+		char b = (pts == 3)?CLI::COLOR::YELLOW:       (pts == 1)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK     ;
 		CLI::setColor(f, b);
 		CLI::putchar('*');
 		cursor.x-=1;
@@ -735,110 +744,72 @@ int main (int argc, const char** argv) {
 	for (int i = 0; i < argc; ++i) { printf ("[%d] %s\n", i, argv[i]); }
 
 	Game g(1, CLI::getWidth (), 25);
-
-	VList<const PlayAction*> play_deck;
-	play_deck.EnsureCapacity(g_len_play_deck);
-	for (int i = 0; i < g_len_play_deck; ++i) {
-		play_deck.Add (&(g_play_deck[i]));
-	}
-	VList<const Objective*> achievement_deck;
-	achievement_deck.EnsureCapacity(g_len_objective);
-	for (int i = 0; i < g_len_objective; ++i) {
-		achievement_deck.Add (&(g_objective[i]));
-	}
-
-	platform_shuffle (play_deck.GetData (), 0, play_deck.Count ());
 	Player p;
 	p.Set("Mr. V", g.collectableResources.Count ());
-	const int marketCards = 6;
-	const int achievementCards = 5;
-	List<const PlayAction*> market(marketCards);
-	List<const Objective*> achievements(achievementCards);
-	List<List<int>*> acquireBonus(marketCards, NULL);
-	List<int> resourcePutInto(market.Length()-1, 0); // used during acquire and upgrade UI
-	
-	for (int i = 0; i < achievementCards; ++i) {
-		achievements.Set(i, achievement_deck.PopLast ());
-	}
-	for (int i = 0; i < marketCards; ++i) {
-		market.Set(i, play_deck.PopLast ());
-	}
 	p.Add(g_playstart, g_len_playstart);
-	p.Draw(play_deck, 3);
+	p.Draw(g.play_deck, 3);
 	for (int i = 0; i < 7; ++i) {
-		p.played.Add (play_deck.PopLast ());
+		if(g.play_deck.Count() > 0) {
+			p.played.Add (g.play_deck.PopLast ());
+		}
 	}
 	p.handPrediction.Copy(p.hand);
 	p.playedPrediction.Copy(p.played);
 
 	p.inventory[0] = 2; // start with 2 basic resource
-
-	CLI::init ();
-	CLI::setSize (CLI::getWidth (), 25);
-	CLI::fillScreen (' ');
-	CLI::move (0, 0);
-	CLI::printf ("Hello World!");
-
-	bool running = true;
-	int count = 10;
-	Coord cursor;
-	int goldLeft = 5, silverLeft = 5;
-	int height = CLI::getHeight();
-	int maxInventory = 10;
-	List<const Player*> playerUIOrder(1); // TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
-	playerUIOrder[0] = &p;
-	while (running) {
-		PrintHand (&g, Coord(1,9), count, p);
-		PrintAchievements(&g, Coord(1,2), achievements, playerUIOrder);
-		PrintMarket(&g, Coord(1,6), market, playerUIOrder, acquireBonus, resourcePutInto);
-		PrintResourcesInventory(Coord(1,20), p, g.collectableResources, maxInventory);
+	
+	while (g.running) {
+		PrintHand (&g, Coord(1,9), g.handDisplayCount, p);
+		PrintAchievements(&g, Coord(1,2), g.achievements, g.playerUIOrder);
+		PrintMarket(&g, Coord(1,6), g.market, g.playerUIOrder, g.acquireBonus, g.resourcePutInto);
+		PrintResourcesInventory(Coord(1,20), p, g.collectableResources, g.maxInventory);
 		PrintUserState(Coord(1,23), p);
 
 		// input
 		CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1); // reset color
 		CLI::move(0,0);
-		int userInput = CLI::getch ();
+		g.setInput(CLI::getch ());
 		// update
-		switch (userInput) {
+		switch (g.userInput) {
 		case 27:
 			printf("quitting...                ");
-			running = false;
+			g.running = false;
 			break;
 		default:
 			switch(p.ui) {
 			case UserControl::ui_hand:
 				printf("hand management        ");
-				UpdateHand (&g, p, userInput, count);
+				UpdateHand (&g, p, g.userInput, g.handDisplayCount);
 				// on hand exit, clear p.selected, reset predictions to current state
 				break;
 			case UserControl::ui_inventory:
 				printf("resource management        ");
 				// on enter, prediction should be a copy of inventory. modify prediction
-				UpdateInventory(p, userInput);
+				UpdateInventory(p, g.userInput);
 				break;
 			case UserControl::ui_cards:
 				printf("select cards              ");
-				UpdateMarket(p, userInput, market, acquireBonus, resourcePutInto);
+				UpdateMarket(p, g.userInput, g.market, g.acquireBonus, g.resourcePutInto);
 				break;
 			case UserControl::ui_acquire:
 				printf("acquire card              ");
-				UpdateAcquire(p, userInput, market, acquireBonus, resourcePutInto, play_deck);
+				UpdateAcquireMarket(p, g.userInput, g.market, g.acquireBonus, g.resourcePutInto, g.play_deck);
 				break;
 			case UserControl::ui_upgrade:
-				UpdateUpgrade(p, userInput);
+				UpdateUpgrade(p, g.userInput);
 				break;
 			case UserControl::ui_objectives:
-				UpdateObjectiveBuy(&g, p, userInput, goldLeft, silverLeft, achievements, achievement_deck);
+				UpdateObjectiveBuy(&g, p, g.userInput, g.goldLeft, g.silverLeft, g.achievements, g.achievement_deck);
 				break;
 			}
 			break;
 		}
 		p.lastState = p.ui;
 	}
-	for(int i = 0; i < acquireBonus.Length(); ++i) {
-		if(acquireBonus[i] != NULL) {
-			DELMEM(acquireBonus[i]);
-			acquireBonus[i] = NULL;
+	for(int i = 0; i < g.acquireBonus.Length(); ++i) {
+		if(g.acquireBonus[i] != NULL) {
+			DELMEM(g.acquireBonus[i]);
+			g.acquireBonus[i] = NULL;
 		}
 	}
 	CLI::release ();

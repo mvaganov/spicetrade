@@ -13,16 +13,20 @@ private:
 public:
 	List():length(0),data(NULL){}
 	List(List & toCopy):length(0),data(NULL) { Copy(toCopy); }
-	void Copy(const List<TYPE> & toCopy) {
+	List& Copy(const List<TYPE> & toCopy) {
 		SetLength(toCopy.Length());
 		memcpy(data, toCopy.data, sizeof(TYPE)*length);
+		return *this;
 	}
-	void Move(List & moving) {
-		data = moving.data; length = moving.length;
-		moving.data = NULL; moving.length = 0;
+	List& Move(List & toMove) {
+		data = toMove.data; length = toMove.length;
+		toMove.data = NULL; toMove.length = 0;
+		return *this;
 	}
+	List& operator=(const List& toCopy) { return Copy(toCopy); }
+	List& operator=(List&& toMove) { return Move(toMove); }
 	List(List && moving) { Move(moving); }
-	List(int size):length(0),data(NULL){
+	List(int size):length(0),data(NULL) {
 		SetLength(size);
 	}
 	List(int size, const TYPE & value):length(0),data(NULL){
@@ -66,6 +70,7 @@ public:
 		return data;
 	}
 	TYPE * GetData() { return data; }
+	const TYPE * GetDataConst() const { return data; }
 	void SetAll(const TYPE & value) {
 		for(int i = 0; i < length; ++i) { data[i] = value; }
 	}
@@ -141,19 +146,25 @@ private:
 	int count;
 public:
 	VList():List<TYPE>::List(),count(0) {}
-	VList(VList & toCopy):List<TYPE>::List(),count(0) { Copy(toCopy); }
-	void Copy(VList & toCopy) {
+	VList(const VList & toCopy):List<TYPE>::List(),count(0) { Copy(toCopy); }
+	VList& Copy(const VList & toCopy) {
 		List<TYPE>::SetLength(toCopy.List<TYPE>::Length());
 		count = toCopy.count;
-		memcpy(GetData(), toCopy.GetData(), sizeof(TYPE)*count);
+		memcpy(GetData(), toCopy.GetDataConst(), sizeof(TYPE)*count);
+		return *this;
 	}
-	VList(VList && moving) {
-		List<TYPE>::Move(moving);
-		count = moving.count;
-		moving.count = 0;
+	VList& Move(VList & toMove) {
+		List<TYPE>::Move(toMove);
+		count = toMove.count;
+		toMove.count = 0;
+		return *this;
 	}
+	VList(VList && toMove) { Move(toMove); }
+	VList& operator=(const VList& toCopy) { return Copy(toCopy); }
+	VList& operator=(VList&& toMove) { return Move(toMove); }
 	VList(const int capacity):count(0),List<TYPE>::List(capacity){}
 	TYPE * GetData() { return List<TYPE>::GetData(); }
+	const TYPE * GetDataConst() const { return List<TYPE>::GetDataConst(); }
 	TYPE & Get(const int index) {
 		BOUNDSCHECK(index, count);
 		return List<TYPE>::Get(index);
@@ -258,6 +269,31 @@ private:
 public:
 	PageList():pageSize(64),count(0){}
 	PageList(int pageSize):pageSize(pageSize),count(0){}
+	PageList& Move(PageList & toMove) {
+		Release();
+		pages.Move(toMove);
+		count = toMove.count;
+		toMove.count = 0;
+		pageSize = toMove.pageSize;
+		toMove.pageSize = 0;
+		return *this;
+	}
+	PageList& Copy(const PageList & toCopy) {
+		Release();
+		pageSize = toCopy.pageSize;
+		pages.EnsureCapacity(toCopy.pages.count);
+		for(int i = 0; i < toCopy.pages.Count(); ++i) {
+			TYPE* page = NEWMEM_ARR(TYPE, pageSize);
+			TYPE* copyPage = toCopy.pages[i];
+			for(int j=0;j<pageSize;++j) { page[j] = copyPage[j]; }
+			pages.Add(page);
+		}
+		count = toCopy.count;
+		return *this;
+	}
+	PageList(PageList && toMove):count(0),pageSize(0) { Move(toMove); }
+	PageList& operator=(const PageList& toCopy) { return Copy(toCopy); }
+	PageList& operator=(PageList&& toMove) { return Move(toMove); }
 	~PageList() { Release(); }
 	void Release() {
 		for(int i = 0; i < pages.Count(); ++i) {
@@ -364,6 +400,35 @@ class Queue {
 	PageList<Node> pages;
 	VList<Node*> freed;
 	Queue(){memset(end, 0, sizeof(end));}
+	void Release() {
+		end[0]=end[1]=NULL;
+		pages.Release();
+		freed.Release();
+	}
+	Queue& Move(Queue & toMove) {
+		Release();
+		pages.Move(toMove.pages);
+		freed.Move(toMove.freed);
+		end[0]=toMove.end[0];
+		end[1]=toMove.end[1];
+		toMove.end[0]=toMove.end[1]=NULL;
+		return this;
+	}
+	Queue(Queue && toMove) { Move(toMove); }
+	Queue& operator=(const Queue& toCopy) { return Copy(toCopy); }
+	Queue& operator=(const Queue&& toMove) { return Move(toMove); }
+	bool EnsureCapacity(int count) {
+		return pages.EnsureCapacity(count);
+	}
+	Queue& Copy(const Queue& toCopy) {
+		int count = pages.Count() - freed.Count();
+		EnsureCapacity(count);
+		for(Node* cursor = toCopy.end[0]; cursor; cursor = cursor->dir[1]) {
+			Enqueue(cursor->value);
+		}
+		return *this;
+	}
+	Queue(const Queue& toCopy) { Copy(toCopy); }
 	Node * NewNode(const T& value) {
 		if(freed.Count() > 0) {
 			Node* n = freed.PopLast();
@@ -373,7 +438,7 @@ class Queue {
 		return pages.GetAdd(Node(value));
 	}
 	int Count(){ return pages.Count() - freed.Count(); }
-	void Enqueue(const T& value, const int whichEnd = last) {
+	Node* Enqueue(const T& value, const int whichEnd = last) {
 		Node* n = NewNode(value);
 		if(end[whichEnd] == NULL) {
 			end[whichEnd] = end[!whichEnd] = n;
@@ -382,6 +447,7 @@ class Queue {
 			n->dir[!whichEnd] = end[whichEnd];
 			end[whichEnd] = n;
 		}
+		return n;
 	}
 	void EnqueueFront(const T& value) { Enqueue(value, first); }
 	void PushBack(const T& value) { Enqueue(value, last); }

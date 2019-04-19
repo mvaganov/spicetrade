@@ -9,5 +9,5 @@ struct Objective {
 	Objective (std::string input, int points, std::string name)
 		: input (input), points (points), bonusPoints (0), name (name) {}
 	Objective (const Objective & toCopy)
-		: input (toCopy.input), points (toCopy.points), bonusPoints (0), name (toCopy.name) {}
+		: input (toCopy.input), points (toCopy.points), bonusPoints (toCopy.bonusPoints), name (toCopy.name) {}
 };

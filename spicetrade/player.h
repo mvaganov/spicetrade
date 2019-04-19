@@ -24,8 +24,8 @@ class Player {
 	VList<const PlayAction*> handPrediction;
 	VList<const PlayAction*> playedPrediction;
 	List<int> inventoryPrediction;
-	Dictionary<int, int> selectedMark;
 	VList<int> selected; // TODO rename selectedCards
+	Dictionary<int, int> selectedMark;
 	PredictionState validPrediction;
 	UserControl ui, lastState;
 
@@ -41,6 +41,36 @@ class Player {
 	Player():validPrediction(PredictionState::none),ui(UserControl::ui_hand),
 		inventoryCursor(0),handOffset(0),currentRow(0),marketCursor(0),
 		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0){}
+
+	Player& Copy(const Player& toCopy) {
+		#define listop(n)		n.Copy(toCopy.n);
+		listop(achieved);	listop(hand);	listop(played);	listop(inventory);
+		listop(handPrediction);	listop(playedPrediction);	listop(inventoryPrediction);
+		listop(selected);
+		#undef listop
+		#define cpy(v)	v=toCopy.v;
+		cpy(name);	cpy(validPrediction);	cpy(ui);cpy(lastState);
+		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
+		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
+		#undef cpy
+		return *this;
+	}
+	Player& Move(Player & toMove) {
+		#define listop(n)		n.Move(toMove.n);
+		listop(achieved);	listop(hand);	listop(played);	listop(inventory);
+		listop(handPrediction);	listop(playedPrediction);	listop(inventoryPrediction);
+		listop(selected);
+		#undef listop
+		#define cpy(v)	v=toMove.v;
+		cpy(name);	cpy(validPrediction);	cpy(ui);cpy(lastState);
+		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
+		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
+		#undef cpy
+		return *this;
+	}
+
+	Player& operator=(const Player& toCopy) { return Copy(toCopy); }
+	Player& operator=(Player&& toMove) { return Move(toMove); }
 
 	void Set(std::string name, int resourceCount) { 
 		this->name = name;

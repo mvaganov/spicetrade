@@ -4,6 +4,7 @@
 #include "cards.h"
 #include "state_base.h"
 #include "player.h"
+#include "platform_random.h"
 
 class Game
 {
@@ -11,8 +12,6 @@ class Game
 	int currentPlayer;
 	/** whether or not the game wants to keep running */
 	bool m_running;
-	/** stores the next user input to process */
-	int userInput;
 	/** what turn it is right now */
 	int turn;
 	/** how many updates have happened */
@@ -21,15 +20,37 @@ class Game
 	Queue<GameState*> * m_stateQueue;
 
 public:
+	/** stores the next user input to process */
+	int userInput; // TODO make private
 	List<Player> players;
-
+	List<Player*> playerUIOrder;
 	Dictionary<char, const ResourceType*> resourceLookup;
 	// code -> index-in-inventory
 	Dictionary<char, int> resourceIndex;
 	VList<const ResourceType*> collectableResources;
+	VList<const PlayAction*> play_deck;
+	VList<const Objective*> achievement_deck;
+	List<const Objective*> achievements;
+	List<const PlayAction*> market;
+	List<List<int>*> acquireBonus;
+	List<int> resourcePutInto; // used during acquire and upgrade UI
 
+	bool running = true;
+	// how many cards to display vertically at once (can scroll)
+	int handDisplayCount = 10;
+	int goldLeft = 5, silverLeft = 5;
+	int maxInventory = 10;
+
+	static const int achievementCards(){return 5;}
+	static const int marketCards(){return 6;}
 
 	void init() {
+		running = true;
+		handDisplayCount = 10;
+		goldLeft = 5;
+		silverLeft = 5;
+		maxInventory = 10;
+
 		for (int i = 0; i < g_len_resources; ++i) {
 			resourceLookup.Set (g_resources[i].icon, &(g_resources[i]));
 			if (g_resources[i].type == ResourceType::Type::resource) {
@@ -37,6 +58,35 @@ public:
 				resourceIndex.Set (g_resources[i].icon, i);
 			}
 		}
+		play_deck.EnsureCapacity(g_len_play_deck);
+		for (int i = 0; i < g_len_play_deck; ++i) {
+			play_deck.Add (&(g_play_deck[i]));
+		}
+		platform_shuffle (play_deck.GetData (), 0, play_deck.Count ());
+		achievement_deck.EnsureCapacity(g_len_objective);
+		for (int i = 0; i < g_len_objective; ++i) {
+			achievement_deck.Add (&(g_objective[i]));
+		}
+		platform_shuffle (achievement_deck.GetData (), 0, achievement_deck.Count ());
+
+		achievements.SetLength(achievementCards());
+		achievements.SetAll(NULL);
+		for (int i = 0; i < achievements.Length(); ++i) {
+			if(achievement_deck.Count() > 0) {
+				achievements.Set(i, achievement_deck.PopLast ());
+			}
+		}
+		market.SetLength(marketCards());
+		market.SetAll(NULL);
+		for (int i = 0; i < market.Length(); ++i) {
+			if(play_deck.Count() > 0){
+				market.Set(i, play_deck.PopLast ());
+			}
+		}
+
+		acquireBonus.SetLength(market.Length());
+		acquireBonus.SetAll(NULL);
+		resourcePutInto.SetLength(market.Length()-1);
 	}
 
 	char ColorOfRes (char icon) {
@@ -54,8 +104,12 @@ public:
 	void nextTurn(){
 		turn++;
 		currentPlayer++;
-		if(currentPlayer >= players.Length())
+		if(currentPlayer >= players.Length()) {
 			currentPlayer = 0;
+		}
+		for(int i = 0; i < players.Length(); ++i){
+			playerUIOrder[i] = &players[(currentPlayer+i) % players.Length()];
+		}
 	}
 	Player * getPlayer(int index){return &(players[index]);}
 	int getPlayerCount(){return players.Length();}
@@ -81,8 +135,29 @@ public:
 
 	void initStateMachine(){}
 
+	void initScreen(int width, int height){
+		CLI::init ();
+		CLI::setSize (width, height);
+		CLI::fillScreen (' ');
+		CLI::move (0, 0);
+	}
+
+	void initPlayers(int playerCount) {
+		players.SetLength(playerCount);
+		playerUIOrder.SetLength(players.Length());
+		for(int i = 0; i < playerCount; ++i) {
+			std::string name = "player "+std::to_string(i);
+			players[i].Set(name, maxInventory);
+			playerUIOrder[i] = &players[i];
+		}
+		currentPlayer = 0;
+		// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
+	}
+
 	Game(int numPlayers, int width, int height){
 		init();
+		initScreen(width,height);
+		initPlayers(numPlayers);
 	}
 	void release(){}
 	~Game(){release();}
@@ -110,7 +185,7 @@ public:
 	}
 
 	Player * getCurrentPlayer(){
-		return &(players[currentPlayer]);
+		return playerUIOrder[0];
 	}
 
 	int getCurrentPlayerIndex(){return currentPlayer;}
