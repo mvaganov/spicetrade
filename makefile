@@ -1,21 +1,42 @@
-CPP_FILES = \
-spicetrade/main.cpp \
-spicetrade/mem.cpp \
-spicetrade/cli.cpp \
-spicetrade/cards.cpp \
-spicetrade/playaction.cpp \
-spicetrade/objective.cpp \
-spicetrade/player.cpp \
+EXE=spicetrade.exe
+CC=g++
+CFLAGS= -std=gnu++11
+LDFLAGS= -lws2_32 
+SRC_PATH=spicetrade/
+BIN_PATH=bin/
+INCL=-I $(SRC_PATH)
 
+# find every .cpp file in src/
+SRC=$(wildcard $(SRC_PATH)*.cpp)
+HEADERS=$(wildcard $(SRC_PATH)*.h)
+OBJ=$(subst spicetrade, bin, $(SRC:.cpp=.o))
 
-OUTPUT = spicetrade.exe
+ifeq ($(OS),Windows_NT)
+	CLEANCMD=del bin\*.o
+else
+	CLEANCMD=rm -f $(OBJ)*.o *~
+endif
 
-all:
-	echo -------------------------------------------------
-	g++ -std=gnu++11 $(CPP_FILES) -o $(OUTPUT)
-	./$(OUTPUT)
+# every .o file in $(BIN_PATH) depends on it's associated .cpp file $(SRC_PATH), and all .h files
+$(BIN_PATH)%.o: $(SRC_PATH)%.cpp $(HEADERS)
+# compile the ${@target} into the ${<output}
+	$(CC) $(CFLAGS) $(INCL) -o "$@" "$<" -c
 
+all: $(SRC) $(EXE)
+	g++ -std=gnu++11 $(OBJ) -o $(EXE)
+	$(BIN_PATH)$(EXE)
+
+$(EXE): $(OBJ)
+	$(CC) $(LDFLAGS) $(OBJ) -o $(BIN_PATH)$@
+
+# prevent make from doing anything with a file named 'clean'
+.PHONY: clean
+
+clean:
+	$(CLEANCMD)
+
+# test network code
 net:
-	echo testing network code
-	g++ spicetrade/echo.cpp -std=gnu++0x -lws2_32 -o nettest.exe
-	./nettest.exe
+	g++ spicetrade/echo.cp -std=gnu++0x -lws2_32 -o bin/nettest.exe
+	bin/nettest.exe
+
