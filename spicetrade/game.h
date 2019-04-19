@@ -59,8 +59,8 @@ public:
 			if(out_move != -1) {
 				out_move += 1; // move codes start at 1, so 0 can be a null value
 				out_player = p;
-				const char* moveNames[] = { "none","cancel","up","left","down","right","enter","enter" };
-				printf("player %d pressed %s\n", out_player, moveNames[out_move]);
+				// const char* moveNames[] = { "none","cancel","up","left","down","right","enter","enter" };
+				// printf("player %d pressed %s\n", out_player, moveNames[out_move]);
 			}
 		}
 		
@@ -158,27 +158,26 @@ public:
 	void initScreen(int width, int height){
 		CLI::init ();
 		CLI::setSize (width, height);
+		//CLI::setDoubleBuffered(true);
 		CLI::fillScreen (' ');
 		CLI::move (0, 0);
 	}
 
 	void initPlayers(int playerCount) {
+		int colors[] = {
+			CLI::COLOR::BRIGHT_RED, CLI::COLOR::RED, 
+			CLI::COLOR::BRIGHT_CYAN, CLI::COLOR::CYAN, 
+			CLI::COLOR::BRIGHT_YELLOW, CLI::COLOR::YELLOW, 
+			CLI::COLOR::BRIGHT_BLUE, CLI::COLOR::BLUE, 
+		};
 		players.SetLength(playerCount);
 		playerUIOrder.SetLength(players.Length());
 		for(int i = 0; i < playerCount; ++i) {
 			Player* p = &(players[i]);
 			std::string name = "player "+std::to_string(i);
-			p->Set(name, collectableResources.Count ());
+			p->Set(name, collectableResources.Count (), colors[i*2], colors[i*2+1]);
 			playerUIOrder[i] = p;
-			// add starting cards
-			p->Add(g_playstart, g_len_playstart);
-			// debug
-			// p.Draw(g.play_deck, 3);
-			// for (int i = 0; i < 7; ++i) {
-			// 	if(g.play_deck.Count() > 0) {
-			// 		p.played.Add (g.play_deck.PopLast ());
-			// 	}
-			// }
+			p->Add(g_playstart, g_len_playstart); // add starting cards
 			p->handPrediction.Copy(p->hand);
 			p->playedPrediction.Copy(p->played);
 			p->inventory[0] = 2; // start with 2 basic resource
@@ -192,15 +191,38 @@ public:
 		initScreen(width,height);
 		initPlayers(numPlayers);
 	}
-	void release(){}
-	~Game(){release();}
+	void Release(){
+		for(int i = 0; i < acquireBonus.Length(); ++i) {
+			if(acquireBonus[i] != NULL) {
+				DELMEM(acquireBonus[i]);
+				acquireBonus[i] = NULL;
+			}
+		}
+		CLI::release ();
+	}
+	~Game(){Release();}
 
-	void draw(Graphics * g){}
+	void Draw();
 
-	void setInput(int a_input){ userInput=a_input; }
-	void processInput(){
-		// figure out which player the input is for
-		// route the input to the right player
+	void SetInput(int a_input){ userInput=a_input; }
+
+	void RefreshInput();
+	
+	void ProcessInput(){
+		switch (userInput) {
+		case 27:
+			printf("quitting...                ");
+			running = false;
+			break;
+		default: {
+			int playerID, moveID;
+			ConvertKeyToPlayerMove(userInput, playerID, moveID);
+			if(playerID >= 0) {
+				Player::UpdateInput(*GetPlayer(playerID), *this, moveID);
+			}
+		}	break;
+		}
+		userInput = 0;
 	}
 
 	bool isAcceptingInput() {
@@ -208,16 +230,16 @@ public:
 		return !state->isDone();
 	}
 
-	void update()
+	void Update()
 	{
-		processInput();
+		ProcessInput();
 		GameState * state = m_stateQueue->Peek();
 		if(state->isDone())
 			nextState();
 		updates++;
 	}
 
-	Player * getCurrentPlayer(){
+	Player * GetCurrentPlayer(){
 		return playerUIOrder[0];
 	}
 
@@ -225,5 +247,11 @@ public:
 	int GetPlayerCount() { return players.Length(); }
 
 
-	int GetCurrentPlayerIndex(){return currentPlayer;}
+	int GetCurrentPlayerIndex() { return currentPlayer; }
+
+	static void UpdateObjectiveBuy(Game&g, Player& p, int userInput);
+	static void UpdateAcquireMarket(Player& p, Game& g, int userInput);
+	static void UpdateMarket(Player& p, int userInput, Game& g);
+	static void PrintAchievements(Game& g, Coord cursor);
+	static void PrintMarket(Game& g, Coord cursor);
 };

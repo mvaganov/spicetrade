@@ -1,6 +1,17 @@
 #include "game.h"
 #include "player.h"
 
+void Player::SetConsoleColor(Game& g) const {
+	if(g.GetCurrentPlayer() != this) {
+		CLI::setColor(fcolor,bcolor);
+	} else {
+		if((CLI::upTimeMS() & (1 << 9)) == 0){
+			CLI::setColor(bcolor,fcolor);
+		} else {
+			CLI::setColor(fcolor,bcolor);
+		}
+	}
+}
 
 bool Player::CanPlay (Game& g, const PlayAction* toPlay, List<int>& inventory) {
 	if(toPlay == NULL) return false;
@@ -215,11 +226,9 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 				p.handPrediction.Copy(p.hand);
 				p.playedPrediction.Copy(p.played);
 			}
-		} else {
-			printf("row %d   \n", p.currentRow);
+		} else if(g.GetCurrentPlayer() == &p) {
 			if (p.currentRow >= 0 && p.currentRow < p.hand.Count ()) {
 				const PlayAction* toPlay = p.hand[p.currentRow];
-				printf("   %s   \n",toPlay->input.c_str());
 				bool canDoIt = CanPlay (g, toPlay, p.inventory);
 				if (canDoIt) {
 					SubtractResources (g, toPlay, p.inventory);
@@ -240,8 +249,66 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 	}
 }
 
+int clampint(int n, int mn, int mx) { return ((n<mn)?mn:((n>mx)?mx:n)); }
+void Player::UpdateInventory(Player& p, int userInput) {
+	switch(userInput) {
+		case Game::MOVE_UP:
+			p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]+1,0,p.inventory[p.inventoryCursor]);
+			break;
+		case Game::MOVE_DOWN:
+			p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]-1,0,p.inventory[p.inventoryCursor]);
+			break;
+		case Game::MOVE_LEFT:
+			p.inventoryCursor--;
+			if(p.inventoryCursor<0) p.inventoryCursor = 0;
+			break;
+		case Game::MOVE_RIGHT:
+			p.inventoryCursor++;
+			if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
+			break;
+		case Game::MOVE_ENTER: case Game::MOVE_ENTER2:
+			p.ui = UserControl::ui_hand;
+			p.inventory.Copy(p.inventoryPrediction);
+			break;
+	}
+}
+
+void Player::UpdateInput(Player& p, Game& g, int move) {
+	switch(p.ui) {
+	case UserControl::ui_hand:
+		p.uimode = "  card management  ";
+		Player::UpdateHand (g, p, move, g.handDisplayCount);
+		// on hand exit, clear p.selected, reset predictions to current state
+		break;
+	case UserControl::ui_inventory:
+		p.uimode = "resource management";
+		// on enter, prediction should be a copy of inventory. modify prediction
+		Player::UpdateInventory(p, move);
+		break;
+	case UserControl::ui_cards:
+		p.uimode = "selecting next card";
+		printf("select cards              ");
+		Game::UpdateMarket(p, move, g);
+		break;
+	case UserControl::ui_acquire:
+		p.uimode = "acquiring next card";
+		printf("acquire card              ");
+		Game::UpdateAcquireMarket(p, g, move);
+		break;
+	case UserControl::ui_upgrade:
+		p.uimode = "upgrading resources";
+		Player::UpdateUpgrade(p, move);
+		break;
+	case UserControl::ui_objectives:
+		p.uimode = "selecting objective";
+		Game::UpdateObjectiveBuy(g, p, move);
+		break;
+	}
+	p.lastState = p.ui;
+}
+
 void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
-	CLI::setColor(-1,-1);
+	CLI::resetColor();
 	int limit = p.hand.Count () + p.played.Count ();
 	int extraSpaces = count - (limit - p.handOffset);
 	if (extraSpaces < 0) {
@@ -252,6 +319,7 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 		CLI::move (pos.y + i - p.handOffset, pos.x);
 		bool isplayed = i >= p.hand.Count ();
 		if (p.ui == UserControl::ui_hand && i == p.currentRow) {
+			p.SetConsoleColor(g);
 			CLI::putchar ((!isplayed ? '>' : 'x'));
 		} else {
 			CLI::putchar (' ');
@@ -273,9 +341,16 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 		PlayAction::PrintAction (g, card, bg);
 		if (isSelected) {
 			int selectedIndex = p.selected.IndexOf (i);
+			CLI::resetColor();
 			CLI::printf ("%2d", selectedIndex);
 		} else {
-			CLI::putchar((p.ui == UserControl::ui_hand && i == p.currentRow)?(!isplayed?'<':'x'):' ');
+			if(p.ui == UserControl::ui_hand && i == p.currentRow){
+				p.SetConsoleColor(g);
+				CLI::putchar(!isplayed?'<':'x');
+			} else {
+				CLI::putchar(' ');
+			}
+			CLI::resetColor();
 			if (CanPlay (g, card, p.inventory)) {
 				CLI::printf (" .");
 			} else {
@@ -283,9 +358,82 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 			}
 		}
 	}
-	CLI::setColor (CLI::COLOR::GREEN);
-	for (int i = 0; i < extraSpaces; ++i) {
-		CLI::move (pos.y + limit + i - p.handOffset, pos.x);
-		CLI::printf ("..............");
+	if(extraSpaces > 0) {
+		CLI::setColor(p.bcolor, -1);
+		for (int i = 0; i < extraSpaces; ++i) {
+			CLI::move (pos.y + limit + i - p.handOffset, pos.x);
+			CLI::printf ("..............");
+		}
+	}
+	CLI::resetColor();
+}
+
+void Player::PrintInventory(const Player& p, Game& g,int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected) {
+	CLI::move (pos.y, pos.x);
+	CLI::setColor (CLI::COLOR::LIGHT_GRAY, background);
+	char formatBuffer[10];
+	sprintf(formatBuffer, "%%%dd", numberWidth);
+	for (int i = 0; i < inventory.Length (); ++i) {
+		if(i == selected) {
+			p.SetConsoleColor(g);//CLI::setColor (CLI::COLOR::WHITE, background);
+			CLI::putchar('>');
+		} else { CLI::putchar(' '); }
+		CLI::setColor (collectableResources[i]->color);
+		if(showZeros || inventory[i] != 0) {
+			CLI::printf (formatBuffer, inventory[i]);
+			if(i == selected) {
+				p.SetConsoleColor(g);CLI::putchar('<');
+			} else { CLI::printf ("%c", collectableResources[i]->icon); }
+		} else {
+			for(int c=0;c<numberWidth;++c) { CLI::putchar(' '); }
+			if(i == selected) {
+				p.SetConsoleColor(g);CLI::putchar('<');
+			} else { CLI::putchar(' '); }
+		}
+	}
+}
+
+void Player::PrintResourcesInventory(Coord cursor, Player& p, Game& g){
+	const int numberWidth = 2;
+	CLI::resetColor();
+	if(p.validPrediction == PredictionState::valid || p.validPrediction == PredictionState::invalid) {
+		PrintInventory(p, g, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, 
+			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1); cursor.y+=1;
+		// draw fake resources... or warning message
+		PrintInventory(p, g, p.validPrediction?CLI::COLOR::BLACK:CLI::COLOR::RED, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, 
+			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1);
+	} else {
+		if(p.ui==UserControl::ui_inventory || p.ui==UserControl::ui_upgrade) {
+			// if modifying the inventory, show the prediction, which is the modifying list
+			PrintInventory(p, g, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, p.inventoryCursor);
+		} else {
+			PrintInventory(p, g, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, -1);
+		}
+		cursor.y+=1;
+		CLI::move(cursor);
+		if(p.upgradeChoices == 0) {
+			int total = p.inventoryPrediction.Sum();
+			CLI::setColor(CLI::COLOR::WHITE, (total<=g.maxInventory)?CLI::COLOR::BLACK:CLI::COLOR::RED);
+			CLI::printf("resources:%3d/%2d", total, g.maxInventory);
+		} else {
+			CLI::setColor(CLI::COLOR::WHITE, (p.upgradesMade<p.upgradeChoices)?CLI::COLOR::RED:CLI::COLOR::BLACK);
+			CLI::printf("+ upgrades:%2d/%2d", p.upgradesMade, p.upgradeChoices);
+		}
+	}
+}
+
+void Player::PrintUserState(Coord cursor, const Player & p) {
+	CLI::move (cursor);
+	CLI::setColor (CLI::COLOR::WHITE, -1); CLI::printf ("%s", p.name.c_str());
+	cursor.y ++; CLI::move (cursor); CLI::printf(p.uimode.c_str()); cursor.y --;
+	cursor.x += 15;
+	for(int i = 0; i < p.achieved.Count(); ++i) {
+		CLI::move (cursor);
+		int pts = p.achieved[i].bonusPoints;
+		char f = (pts == 3)?CLI::COLOR::BRIGHT_YELLOW:(pts == 1)?CLI::COLOR::WHITE    :CLI::COLOR::LIGHT_GRAY;
+		char b = (pts == 3)?CLI::COLOR::YELLOW:       (pts == 1)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK     ;
+		CLI::setColor(f, b);
+		CLI::putchar('*');
+		cursor.x-=1;
 	}
 }

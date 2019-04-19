@@ -40,10 +40,13 @@ class Player {
 	int marketCardToBuy; // TODO rename market choice
 	int upgradeChoices = 0; // TODO rename upgradeChoicesToMake
 	int upgradesMade = 0;
+	int fcolor, bcolor;
 
 	Player():validPrediction(PredictionState::none),ui(UserControl::ui_hand),
 		inventoryCursor(0),handOffset(0),currentRow(0),marketCursor(0),
-		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0){}
+		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0),fcolor(-1),bcolor(-1){}
+
+	void SetConsoleColor(Game& g)const;
 
 	Player& Copy(const Player& toCopy) {
 		#define listop(n)		n.Copy(toCopy.n);
@@ -52,9 +55,10 @@ class Player {
 		listop(selected);
 		#undef listop
 		#define cpy(v)	v=toCopy.v;
-		cpy(name);	cpy(validPrediction);	cpy(ui);cpy(lastState);
+		cpy(name);cpy(validPrediction);cpy(ui);cpy(lastState);
 		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
 		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
+		cpy(fcolor);cpy(bcolor);
 		#undef cpy
 		return *this;
 	}
@@ -75,8 +79,10 @@ class Player {
 	Player& operator=(const Player& toCopy) { return Copy(toCopy); }
 	Player& operator=(Player&& toMove) { return Move(toMove); }
 
-	void Set(std::string name, int resourceCount) { 
+	void Set(std::string name, int resourceCount, int foregroundColor, int backgroundColor) { 
 		this->name = name;
+		fcolor = foregroundColor;
+		bcolor = backgroundColor;
 		inventory.SetLength(resourceCount);
 		inventory.SetAll(0);
 		inventoryPrediction.Copy(inventory);
@@ -110,10 +116,15 @@ class Player {
 
 	static void RefreshPrediction(Game& g, Player& p);
 
-	static void UpdateUpgrade(Player& p, int userInput);
-
 	// event handling
 	static void UpdateHand (Game& g, Player& p, int userInput, int count);
+	static void UpdateInventory(Player& p, int userInput);
+	static void UpdateUpgrade(Player& p, int userInput);
+	static void UpdateInput(Player& p, Game& g, int move);
 
+	// drawing UI
 	static void PrintHand (Game& g, Coord pos, int count, Player& p);
+	static void PrintInventory(const Player& p, Game& g, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected);
+	static void PrintResourcesInventory(Coord cursor, Player& p, Game& g);
+	static void PrintUserState(Coord cursor, const Player & p);
 };
