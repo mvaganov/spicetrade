@@ -41,8 +41,30 @@ public:
 	int goldLeft = 5, silverLeft = 5;
 	int maxInventory = 10;
 
-	static const int achievementCards(){return 5;}
-	static const int marketCards(){return 6;}
+	static const int achievementCards = 5;
+	static const int marketCards = 6;
+
+	static const int MOVE_CANCEL = 1, MOVE_UP = 2, MOVE_LEFT = 3, MOVE_DOWN = 4, MOVE_RIGHT = 5, MOVE_ENTER = 6, MOVE_ENTER2 = 7, MOVE_COUNT = 7;
+
+	void ConvertKeyToPlayerMove(int key, int& out_player, int& out_move) {
+		const char* moves[] = {
+			"qwasdex",
+			"\bijkl\n\r",
+			"-842605"
+		};
+		const int num_player_controls = sizeof(moves)/sizeof(moves[0]);
+		out_player = out_move = -1;
+		for(int p = 0; p < num_player_controls && out_player < 0; ++p) {
+			out_move = List<const char>::IndexOf((const char)key, moves[p], 0, MOVE_COUNT);
+			if(out_move != -1) {
+				out_move += 1; // move codes start at 1, so 0 can be a null value
+				out_player = p;
+				const char* moveNames[] = { "none","cancel","up","left","down","right","enter","enter" };
+				printf("player %d pressed %s\n", out_player, moveNames[out_move]);
+			}
+		}
+		
+	}
 
 	void init() {
 		running = true;
@@ -69,14 +91,14 @@ public:
 		}
 		platform_shuffle (achievement_deck.GetData (), 0, achievement_deck.Count ());
 
-		achievements.SetLength(achievementCards());
+		achievements.SetLength(achievementCards);
 		achievements.SetAll(NULL);
 		for (int i = 0; i < achievements.Length(); ++i) {
 			if(achievement_deck.Count() > 0) {
 				achievements.Set(i, achievement_deck.PopLast ());
 			}
 		}
-		market.SetLength(marketCards());
+		market.SetLength(marketCards);
 		market.SetAll(NULL);
 		for (int i = 0; i < market.Length(); ++i) {
 			if(play_deck.Count() > 0){
@@ -111,8 +133,6 @@ public:
 			playerUIOrder[i] = &players[(currentPlayer+i) % players.Length()];
 		}
 	}
-	Player * getPlayer(int index){return &(players[index]);}
-	int getPlayerCount(){return players.Length();}
 
 	/** add a game state to the queue */
 	void queueState(GameState * a_state){
@@ -146,9 +166,22 @@ public:
 		players.SetLength(playerCount);
 		playerUIOrder.SetLength(players.Length());
 		for(int i = 0; i < playerCount; ++i) {
+			Player* p = &(players[i]);
 			std::string name = "player "+std::to_string(i);
-			players[i].Set(name, maxInventory);
-			playerUIOrder[i] = &players[i];
+			p->Set(name, collectableResources.Count ());
+			playerUIOrder[i] = p;
+			// add starting cards
+			p->Add(g_playstart, g_len_playstart);
+			// debug
+			// p.Draw(g.play_deck, 3);
+			// for (int i = 0; i < 7; ++i) {
+			// 	if(g.play_deck.Count() > 0) {
+			// 		p.played.Add (g.play_deck.PopLast ());
+			// 	}
+			// }
+			p->handPrediction.Copy(p->hand);
+			p->playedPrediction.Copy(p->played);
+			p->inventory[0] = 2; // start with 2 basic resource
 		}
 		currentPlayer = 0;
 		// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
@@ -188,5 +221,9 @@ public:
 		return playerUIOrder[0];
 	}
 
-	int getCurrentPlayerIndex(){return currentPlayer;}
+	Player * GetPlayer(int index){return &(players[index]);}
+	int GetPlayerCount() { return players.Length(); }
+
+
+	int GetCurrentPlayerIndex(){return currentPlayer;}
 };

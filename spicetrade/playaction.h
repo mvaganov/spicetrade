@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string>
 
+class Game;
+
 struct PlayAction {
 	//const char * input, * output;
 	std::string input, output;
@@ -36,4 +38,5 @@ struct PlayAction {
 		DELMEM_ARR (buffer);
 		return result;
 	}
+	static void PrintAction (Game& g, const PlayAction* a, int bg);
 };

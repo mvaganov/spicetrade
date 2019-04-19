@@ -2,7 +2,11 @@ CPP_FILES = \
 spicetrade/main.cpp \
 spicetrade/mem.cpp \
 spicetrade/cli.cpp \
-spicetrade/cards.cpp
+spicetrade/cards.cpp \
+spicetrade/playaction.cpp \
+spicetrade/objective.cpp \
+spicetrade/player.cpp \
+
 
 OUTPUT = spicetrade.exe
 

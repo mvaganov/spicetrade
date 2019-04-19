@@ -12,9 +12,12 @@
 enum PredictionState {none, valid, invalid};
 enum UserControl {ui_hand, ui_inventory, ui_cards, ui_acquire, ui_objectives, ui_upgrade};
 
+class Game;
+
 class Player {
   public:
 	std::string name;
+	std::string uimode;
 	VList<Objective> achieved;
 
 	VList<const PlayAction*> hand;
@@ -92,4 +95,25 @@ class Player {
 		handPrediction.Copy(hand);
 		playedPrediction.Copy(played);
 	}
+
+	// check if an action can be paid for with the given resources TODO rename CanAfford
+	static bool CanPlay (Game& g, const PlayAction* toPlay, List<int>& inventory);
+
+	static bool SubtractResources (Game& g, const PlayAction* card, List<int>& inventory);
+
+	static bool InventoryValid(const List<int>& inventory);
+
+	static void AddResources (Game& g, int& upgradesToDo, const PlayAction* card, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played);
+
+	static bool Calculate(Game& g, int& upgradesToDo, VList<const PlayAction*>& hand, VList<const PlayAction*>& played,
+	VList<int>& selected, List<int>& prediction);
+
+	static void RefreshPrediction(Game& g, Player& p);
+
+	static void UpdateUpgrade(Player& p, int userInput);
+
+	// event handling
+	static void UpdateHand (Game& g, Player& p, int userInput, int count);
+
+	static void PrintHand (Game& g, Coord pos, int count, Player& p);
 };
