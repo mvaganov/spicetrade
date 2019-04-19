@@ -6,7 +6,7 @@ void Game::Draw() {
 		Player& p = *GetPlayer(i);
 		Player::PrintHand (*this, Coord(column+1,9), handDisplayCount, p);
 		Player::PrintResourcesInventory(Coord(column,20), p, *this);
-		Player::PrintUserState(Coord(column,23), p);
+		Player::PrintUserState(Coord(column,23), p, *this);
 	}
 	Game::PrintAchievements(*this, Coord(0,2));
 	Game::PrintMarket(*this, Coord(0,6));

@@ -370,24 +370,24 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 
 void Player::PrintInventory(const Player& p, Game& g,int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected) {
 	CLI::move (pos.y, pos.x);
-	CLI::setColor (CLI::COLOR::LIGHT_GRAY, background);
+	int fcolor = CLI::COLOR::LIGHT_GRAY;
+	CLI::setColor (fcolor, background);
 	char formatBuffer[10];
 	sprintf(formatBuffer, "%%%dd", numberWidth);
 	for (int i = 0; i < inventory.Length (); ++i) {
 		if(i == selected) {
-			p.SetConsoleColor(g);//CLI::setColor (CLI::COLOR::WHITE, background);
-			CLI::putchar('>');
+			p.SetConsoleColor(g);CLI::putchar('>');CLI::setColor (fcolor, background);
 		} else { CLI::putchar(' '); }
 		CLI::setColor (collectableResources[i]->color);
 		if(showZeros || inventory[i] != 0) {
 			CLI::printf (formatBuffer, inventory[i]);
 			if(i == selected) {
-				p.SetConsoleColor(g);CLI::putchar('<');
+				p.SetConsoleColor(g);CLI::putchar('<');CLI::setColor(fcolor, background);
 			} else { CLI::printf ("%c", collectableResources[i]->icon); }
 		} else {
 			for(int c=0;c<numberWidth;++c) { CLI::putchar(' '); }
 			if(i == selected) {
-				p.SetConsoleColor(g);CLI::putchar('<');
+				p.SetConsoleColor(g);CLI::putchar('<');CLI::setColor(fcolor, background);
 			} else { CLI::putchar(' '); }
 		}
 	}
@@ -422,9 +422,12 @@ void Player::PrintResourcesInventory(Coord cursor, Player& p, Game& g){
 	}
 }
 
-void Player::PrintUserState(Coord cursor, const Player & p) {
+void Player::PrintUserState(Coord cursor, const Player & p, Game& g) {
 	CLI::move (cursor);
-	CLI::setColor (CLI::COLOR::WHITE, -1); CLI::printf ("%s", p.name.c_str());
+	if(g.GetCurrentPlayer()==&p) { p.SetConsoleColor(g); }
+	else{CLI::resetColor();}
+	CLI::printf ("%s", p.name.c_str());
+	CLI::resetColor();
 	cursor.y ++; CLI::move (cursor); CLI::printf(p.uimode.c_str()); cursor.y --;
 	cursor.x += 15;
 	for(int i = 0; i < p.achieved.Count(); ++i) {

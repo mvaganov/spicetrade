@@ -29,10 +29,19 @@
 //x [upgrade action] - state_upgrade - select X resources to upgrade
 //x [rest action] - put played cards back into hand
 
-// TODO cancel card purchase if enter is pressed twice without moving the inventory cursor
+// TODO show correct state message as soon as state changes, instead of waiting for input in new state
+// TODO cancel card purchase if enter is pressed twice without moving the inventory cursor, or cancel is pressed
 // TODO pass the turn
 // TODO force resource reconcile (down to max) after turn is passed. require reconcile finish before new turn starts
 // TODO re-implement predictions
+// TODO list actions that have happened in a history list:
+//   - card played (including pre and post resources)
+//   - cards refreshed (including pre played list)
+//   - market card acquired (including what slot, and payment for card if needed)
+//   - objective aqcuired (including pre and post resources)
+//   - resources reconciled (including pre and post resources)
+//   - upgrade made (including which upgrade card was used, pre and post resources)
+// TODO undo the last action on the history list if the current player presses cancel
 
 // architecture:
 // game

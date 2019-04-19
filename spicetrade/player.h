@@ -126,5 +126,5 @@ class Player {
 	static void PrintHand (Game& g, Coord pos, int count, Player& p);
 	static void PrintInventory(const Player& p, Game& g, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected);
 	static void PrintResourcesInventory(Coord cursor, Player& p, Game& g);
-	static void PrintUserState(Coord cursor, const Player & p);
+	static void PrintUserState(Coord cursor, const Player & p, Game& g);
 };
