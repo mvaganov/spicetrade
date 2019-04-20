@@ -12,8 +12,8 @@ private:
 	TYPE * data;
 public:
 	List():length(0),data(NULL){}
-	List(List & toCopy):length(0),data(NULL) { Copy(toCopy); }
-	List& Copy(const List<TYPE> & toCopy) {
+	List(const List & toCopy):length(0),data(NULL) { Copy(toCopy); }
+	List& Copy(const List & toCopy) {
 		SetLength(toCopy.Length());
 		memcpy(data, toCopy.data, sizeof(TYPE)*length);
 		return *this;

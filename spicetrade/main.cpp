@@ -54,12 +54,11 @@
 //   _inventoryPredicted
 
 int main (int argc, const char** argv) {
-	Game g(3, CLI::getWidth (), 25);
+	Game g(1, CLI::getWidth (), 25);
 	while (g.IsRunning()) {
 		g.Draw();
 		g.RefreshInput();
 		g.Update();
 	}
-	CLI::release();
 	return 0;
 }

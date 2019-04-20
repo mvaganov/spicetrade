@@ -12,14 +12,13 @@
 #define MAX_RESOURCES 10
 
 enum PredictionState {none, valid, invalid};
-enum UserControl {ui_none, ui_hand, ui_reslimit, ui_cards, ui_acquire, ui_objectives, ui_upgrade};
+//enum UserControl {ui_none, ui_hand, ui_reslimit, ui_cards, ui_acquire, ui_objectives, ui_upgrade};
 
 class Game;
 
 class Player {
   public:
 	std::string name;
-	std::string uimode;
 	VList<Objective> achieved;
 
 	VList<const PlayAction*> hand;
@@ -32,7 +31,7 @@ class Player {
 	VList<int> selected; // TODO rename selectedCards
 	Dictionary<int, int> selectedMark;
 	PredictionState validPrediction;
-	UserControl ui;
+//	UserControl ui;
 
 	PlayerState* uistate;
 
@@ -45,7 +44,7 @@ class Player {
 	int upgradesMade = 0;
 	int fcolor, bcolor;
 
-	Player():validPrediction(PredictionState::none),ui(UserControl::ui_none),
+	Player():validPrediction(PredictionState::none),//ui(UserControl::ui_none),
 		inventoryCursor(0),handOffset(0),currentRow(0),marketCursor(0),
 		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0),fcolor(-1),bcolor(-1),uistate(NULL){}
 
@@ -62,6 +61,8 @@ class Player {
 	void SetConsoleColor(Game& g)const;
 	void SetConsoleColorBlink()const;
 
+	void Init(Game& g);
+
 	Player& Copy(const Player& toCopy) {
 		#define listop(n)		n.Copy(toCopy.n);
 		listop(achieved);	listop(hand);	listop(played);	listop(inventory);
@@ -69,7 +70,7 @@ class Player {
 		listop(selected);
 		#undef listop
 		#define cpy(v)	v=toCopy.v;
-		cpy(name);cpy(validPrediction);cpy(ui);
+		cpy(name);cpy(validPrediction);//cpy(ui);
 		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
 		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
 		cpy(fcolor);cpy(bcolor);
@@ -84,7 +85,7 @@ class Player {
 		listop(selected);
 		#undef listop
 		#define cpy(v)	v=toMove.v;
-		cpy(name);	cpy(validPrediction);	cpy(ui);
+		cpy(name);	cpy(validPrediction);	//cpy(ui);
 		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
 		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
 		#undef cpy
@@ -120,7 +121,7 @@ class Player {
 	static void FinishTurn(Game& g, Player& p);
 
 	// check if an action can be paid for with the given resources
-	static bool CanAfford (Game& g, const std::string& cost, List<int>& inventory);
+	static bool CanAfford (Game& g, const std::string& cost, const List<int>& inventory);
 
 	static bool SubtractResources (Game& g, const std::string& cost, List<int>& inventory);
 
@@ -133,7 +134,24 @@ class Player {
 
 	static void RefreshPrediction(Game& g, Player& p);
 
-	static void SetUIState(Game& g, Player& p, UserControl ui);
+	template<typename T>
+	static bool IsState(const Player& p) {
+		return p.uistate != NULL && dynamic_cast<T*>(p.uistate) != NULL;
+	}
+
+	// entire template function must be in class declaration.
+	template <typename T>
+	static void SetUIState(Game& g, Player& p) {
+		bool oldState = Player::IsState<T>(p);
+		if(oldState) { return; }
+		PlayerState* next = NEWMEM(T);
+		if(p.uistate != NULL) {
+			p.uistate->Release();
+			DELMEM(p.uistate);
+		}
+		p.uistate = next;
+		next->Init(GamePlayer(&g, &p));
+	}
 
 	// event handling
 	static void UpdateHand (Game& g, Player& p, int userInput, int count);

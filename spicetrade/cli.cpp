@@ -550,15 +550,13 @@ void CLI::init()
 /** call at the end of the command-line application */
 void CLI::release()
 {
+	if(!g_CLI) return;
 	CLI::resetColor();
 	platform_setColor(g_CLI->getFcolor(), g_CLI->getBcolor());
-	if(g_CLI)
-	{
-		resetColor();
-		::putchar('\n');
-		DELMEM(g_CLI);
-		g_CLI = 0;
-	}
+	resetColor();
+	::putchar('\n');
+	DELMEM(g_CLI);
+	g_CLI = 0;
 	__WINDOWS_CLI = 0;
 }
 
@@ -795,9 +793,9 @@ bool CLI::isInitialized()
 void CLI::release()
 {
 	CLI::resetColor();
-	platform_setColor(g_CLI->getFcolor(), g_CLI->getBcolor());
 	if(g_CLI)
 	{
+		platform_setColor(g_CLI->getFcolor(), g_CLI->getBcolor());
 		tcsetattr( STDIN_FILENO, TCSANOW, &oldTerminalIOSettings );
 		resetColor();
 		::putchar('\n');

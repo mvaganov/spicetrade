@@ -2,7 +2,7 @@
 #include "game.h"
 
 // reconcile resources down to 10
-class InventoryEditState : public PlayerState {
+class ResWaste : public PlayerState {
 	virtual const char* GetName () { return "resource management"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
@@ -16,7 +16,7 @@ class InventoryEditState : public PlayerState {
 };
 
 // upgrade and upgrade prediction
-class InventoryUpgradeState : public PlayerState {
+class ResUpgrade : public PlayerState {
 	virtual const char* GetName () { return "upgrading resources"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
@@ -38,7 +38,7 @@ class InventoryUpgradeState : public PlayerState {
 // selecting card to play
 // predicting card impact on inventory
 // re-ordering cards
-class HandState : public PlayerState {
+class HandManage : public PlayerState {
 	virtual const char* GetName () { return "card management"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
@@ -59,7 +59,7 @@ class HandState : public PlayerState {
 	}
 };
 
-class MarketCardSelectState : public PlayerState {
+class CardBuy : public PlayerState {
 	virtual const char* GetName () { return "selecting next card"; };
 	virtual void Init (const GamePlayer& a_data) { PlayerState::Init(a_data); }
 	virtual void Release () {}
@@ -68,7 +68,7 @@ class MarketCardSelectState : public PlayerState {
 	}
 };
 
-class MarketCardPaymentState : public PlayerState {
+class CardBuyDeep : public PlayerState {
 	virtual const char* GetName () { return "acquiring next card"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
@@ -89,7 +89,7 @@ class MarketCardPaymentState : public PlayerState {
 	}
 };
 
-class ObjectiveSelectState : public PlayerState {
+class ObjectiveBuy : public PlayerState {
 	virtual const char* GetName () { return "selecting objective"; };
 	virtual void Init (const GamePlayer& a_data) { PlayerState::Init(a_data); }
 	virtual void Release () {}

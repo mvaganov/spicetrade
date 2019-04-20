@@ -161,29 +161,7 @@ public:
 		CLI::move (0, 0);
 	}
 
-	void InitPlayers(int playerCount) {
-		int colors[] = {
-			CLI::COLOR::BRIGHT_RED, CLI::COLOR::RED, 
-			CLI::COLOR::BRIGHT_CYAN, CLI::COLOR::CYAN, 
-			CLI::COLOR::BRIGHT_YELLOW, CLI::COLOR::YELLOW, 
-			CLI::COLOR::BRIGHT_BLUE, CLI::COLOR::BLUE, 
-		};
-		players.SetLength(playerCount);
-		playerUIOrder.SetLength(players.Length());
-		for(int i = 0; i < playerCount; ++i) {
-			Player* p = &(players[i]);
-			std::string name = "player "+std::to_string(i);
-			p->Set(name, collectableResources.Count (), colors[i*2], colors[i*2+1]);
-			playerUIOrder[i] = p;
-			p->Add(g_playstart, g_len_playstart); // add starting cards
-			p->handPrediction.Copy(p->hand);
-			p->playedPrediction.Copy(p->played);
-			p->inventory[0] = 2; // start with 2 basic resource
-			Player::SetUIState(*this,*p,UserControl::ui_hand);
-		}
-		currentPlayer = 0;
-		// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
-	}
+	void InitPlayers(int playerCount);
 
 	Game(int numPlayers, int width, int height){
 		Init();
@@ -253,6 +231,6 @@ public:
 	static void UpdateObjectiveBuy(Game&g, Player& p, int userInput);
 	static void UpdateAcquireMarket(Game& g, Player& p, int userInput);
 	static void UpdateMarket(Game& g, Player& p, int userInput);
-	static void PrintAchievements(Game& g, Coord cursor);
+	static void PrintObjectives(Game& g, Coord cursor);
 	static void PrintMarket(Game& g, Coord cursor);
 };

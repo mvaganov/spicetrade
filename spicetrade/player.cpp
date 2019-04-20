@@ -2,6 +2,9 @@
 #include "player.h"
 #include "playerstate.h"
 
+void Player::Init(Game& g) {
+}
+
 void Player::SetConsoleColor(Game& g) const {
 	if(g.GetCurrentPlayer() != this) {
 		CLI::setColor(fcolor,bcolor);
@@ -18,7 +21,7 @@ void Player::SetConsoleColorBlink() const {
 	}
 }
 
-bool Player::CanAfford (Game& g, const std::string& cost, List<int>& inventory) {
+bool Player::CanAfford (Game& g, const std::string& cost, const List<int>& inventory) {
 	List<int> testInventory (inventory); // TODO turn this into a static array and memcpy inventory?
 	SubtractResources (g, cost, testInventory);
 	return InventoryValid(testInventory);
@@ -79,15 +82,15 @@ void Player::AddResources (Game& g, int& upgradesToDo, const PlayAction* card, L
 
 bool Player::Calculate(Game& g, int& upgradesToDo, VList<const PlayAction*>& hand, VList<const PlayAction*>& played,
 	VList<int>& selected, List<int>& prediction) {
-	bool canAfford = true;
+	bool affordable = true;
 	for(int i = 0; i < selected.Count(); ++i) {
 		const PlayAction* card = hand[selected[i]];
 		SubtractResources(g, card->input, prediction);
 		AddResources(g, upgradesToDo, card, prediction, hand, played);
 		bool canDoIt = InventoryValid(prediction);
-		if(!canDoIt) { canAfford = false; }
+		if(!canDoIt) { affordable = false; }
 	}
-	return canAfford;
+	return affordable;
 }
 
 void Player::RefreshPrediction(Game& g, Player& p) {
@@ -95,8 +98,8 @@ void Player::RefreshPrediction(Game& g, Player& p) {
 	if(p.selected.Count() == 0){
 		p.validPrediction = PredictionState::none;
 	} else {
-		bool canAfford = Player::Calculate(g, p.upgradeChoices, p.handPrediction, p.playedPrediction, p.selected, p.inventoryPrediction);
-		p.validPrediction = canAfford?PredictionState::valid:PredictionState::invalid;
+		bool affordable = Player::Calculate(g, p.upgradeChoices, p.handPrediction, p.playedPrediction, p.selected, p.inventoryPrediction);
+		p.validPrediction = affordable?PredictionState::valid:PredictionState::invalid;
 	}
 }
 
@@ -141,7 +144,7 @@ void Player::UpdateUpgrade(Game& g, Player& p, int userInput) {
 	case Game::MOVE_LEFT: MoveInventoryCursor(p, false); break;
 	case Game::MOVE_RIGHT: MoveInventoryCursor(p, true); break;
 	case Game::MOVE_ENTER: case Game::MOVE_ENTER2:
-		p.SetUIState(g,p,UserControl::ui_hand);
+		p.SetUIState<HandManage>(g,p);
 		break;
 	}
 }
@@ -158,7 +161,7 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		}
 		if (p.currentRow < 0) {
 			p.currentRow = 0;
-			p.SetUIState(g,p,UserControl::ui_cards); //p.ui = UserControl::ui_cards;
+			p.SetUIState<CardBuy>(g,p);
 		}
 		break;
 	case Game::MOVE_DOWN: {
@@ -184,7 +187,7 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 				p.selectedMark.Set (p.currentRow, 1);
 				RefreshPrediction(g, p);
 				if(p.upgradeChoices != 0) {
-					p.SetUIState(g,p,UserControl::ui_upgrade); //p.ui = UserControl::ui_upgrade;
+					p.SetUIState<ResUpgrade>(g,p);
 				} // TODO add code to make the inventory numbers show up, and the upgrade message too.
 			}
 		}
@@ -242,6 +245,9 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 				bool canDoIt = toPlay != NULL && CanAfford (g, toPlay->input, p.inventory);
 				if (canDoIt) {
 					PlayAction::DoIt(g, p, toPlay);
+					if(p.upgradeChoices != 0) {
+						p.SetUIState<ResUpgrade>(g,p);
+					}
 					Player::FinishTurn(g,p);
 				}
 			}
@@ -265,42 +271,34 @@ void Player::UpdateInventory(Game& g, Player& p, int userInput) {
 			int total = p.inventoryPrediction.Sum();
 			if(total <= g.maxInventory) {
 				p.inventory.Copy(p.inventoryPrediction);
-				p.SetUIState(g,p,UserControl::ui_hand); //p.ui = UserControl::ui_hand;
+				p.SetUIState<HandManage>(g,p);
 			}
 		}	break;
 	}
 }
 
-void Player::SetUIState(Game& g, Player& p, UserControl ui) {
-	bool newState = p.ui != ui;
-	if(!newState) {
-		//printf("state duplication...\n");
-		//platform_getch();
-		return;
-	}
-	PlayerState* next = NULL;
-	switch(ui) {
-	case UserControl::ui_hand:      next = NEWMEM(HandState);               break;
-	case UserControl::ui_reslimit:  next = NEWMEM(InventoryEditState);      break;
-	case UserControl::ui_cards:     next = NEWMEM(MarketCardSelectState);   break;
-	case UserControl::ui_acquire:   next = NEWMEM(MarketCardPaymentState);  break;
-	case UserControl::ui_upgrade:   next = NEWMEM(InventoryUpgradeState);   break;
-	case UserControl::ui_objectives:next = NEWMEM(ObjectiveSelectState);    break;
-	}
-	if(next != NULL) {
-		if(p.uistate != NULL) {
-			p.uistate->Release();
-			DELMEM(p.uistate);
-		}
-		p.uistate = next;
-		next->Init(GamePlayer(&g, &p));
-	}
-	p.ui = ui;
-}
+// template<typename T>
+// bool Player::IsState(const Player& p) {
+// 	return p.uistate != NULL && dynamic_cast<T*>(p.uistate) != NULL;
+// }
+
+// template <typename T>
+// void Player::SetUIState(Game& g, Player& p) {
+// 	bool oldState = Player::IsState<T>(p);
+// 	if(oldState) { return; }
+// 	PlayerState* next = NEWMEM(T);
+// 	if(p.uistate != NULL) {
+// 		p.uistate->Release();
+// 		DELMEM(p.uistate);
+// 	}
+// 	p.uistate = next;
+// 	next->Init(GamePlayer(&g, &p));
+// }
 
 void Player::UpdateInput(Game& g, Player& p, int move) {
 	if(p.uistate == NULL) {
-		Player::SetUIState(g,p,UserControl::ui_hand);
+		p.Init(g);
+		Player::SetUIState<HandManage>(g,p);
 	}
 	p.uistate->ProcessInput(move);
 }
@@ -316,7 +314,7 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 	for (int i = p.handOffset; i < limit; ++i) {
 		CLI::move (pos.y + i - p.handOffset, pos.x);
 		bool isplayed = i >= p.hand.Count ();
-		if (p.ui == UserControl::ui_hand && i == p.currentRow) {
+		if (Player::IsState<HandManage>(p) && i == p.currentRow) {
 			p.SetConsoleColor(g);
 			CLI::putchar ((!isplayed ? '>' : 'x'));
 		} else {
@@ -342,7 +340,7 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 			CLI::resetColor();
 			CLI::printf ("%2d", selectedIndex);
 		} else {
-			if(p.ui == UserControl::ui_hand && i == p.currentRow){
+			if(Player::IsState<HandManage>(p) && i == p.currentRow){
 				p.SetConsoleColor(g);
 				CLI::putchar(!isplayed?'<':'x');
 			} else {
@@ -370,20 +368,20 @@ void Player::PrintInventory(Game& g, const Player& p, int background, int number
 	sprintf(formatBuffer, "%%%dd", numberWidth);
 	for (int i = 0; i < inventory.Length (); ++i) {
 		if(i == selected) {
-			if(p.ui == UserControl::ui_reslimit){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
+			if(Player::IsState<ResWaste>(p)){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
 			CLI::putchar('>');CLI::setColor (fcolor, background);
 		} else { CLI::putchar(' '); }
 		CLI::setColor (collectableResources[i]->color);
 		if(showZeros || inventory[i] != 0) {
 			CLI::printf (formatBuffer, inventory[i]);
 			if(i == selected) {
-			if(p.ui == UserControl::ui_reslimit){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
+				if(Player::IsState<ResWaste>(p)){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
 				CLI::putchar('<');CLI::setColor(fcolor, background);
 			} else { CLI::printf ("%c", collectableResources[i]->icon); }
 		} else {
 			for(int c=0;c<numberWidth;++c) { CLI::putchar(' '); }
 			if(i == selected) {
-				if(p.ui == UserControl::ui_reslimit){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
+				if(Player::IsState<ResWaste>(p)){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
 				CLI::putchar('<');CLI::setColor(fcolor, background);
 			} else { CLI::putchar(' '); }
 		}
@@ -395,12 +393,12 @@ void Player::PrintResourcesInventory(Game& g, Coord cursor, Player& p){
 	CLI::resetColor();
 	if(p.validPrediction == PredictionState::valid || p.validPrediction == PredictionState::invalid) {
 		PrintInventory(g, p, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, 
-			(p.ui==UserControl::ui_reslimit)?p.inventoryCursor:-1); cursor.y+=1;
+			(Player::IsState<ResWaste>(p))?p.inventoryCursor:-1); cursor.y+=1;
 		// draw fake resources... or warning message
 		PrintInventory(g, p, p.validPrediction?CLI::COLOR::BLACK:CLI::COLOR::RED, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, 
-			(p.ui==UserControl::ui_reslimit)?p.inventoryCursor:-1);
+			(Player::IsState<ResWaste>(p))?p.inventoryCursor:-1);
 	} else {
-		if(p.ui==UserControl::ui_reslimit || p.ui==UserControl::ui_upgrade) {
+		if(Player::IsState<ResWaste>(p) || Player::IsState<ResUpgrade>(p)) {
 			// if modifying the inventory, show the prediction, which is the modifying list
 			PrintInventory(g, p, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, p.inventoryCursor);
 		} else {
@@ -434,10 +432,10 @@ void Player::PrintUserState(Game& g, Coord cursor, const Player & p) {
 	cursor.y ++; CLI::move (cursor); 
 	std::string output = "...";
 	if(p.uistate != NULL) { output = p.uistate->GetName(); }
-	CLI::printf(output.c_str()); //CLI::printf(p.uimode.c_str()); 
+	CLI::printf(output.c_str());
 	if(output.length() < MAXWIDTH) { printspaces(MAXWIDTH-output.length()); }
 	cursor.y --;
-	cursor.x += MAXWIDTH;
+	cursor.x += MAXWIDTH-1;
 	for(int i = 0; i < p.achieved.Count(); ++i) {
 		CLI::move (cursor);
 		int pts = p.achieved[i].bonusPoints;
@@ -454,6 +452,6 @@ void Player::FinishTurn(Game& g, Player& p) {
 	p.inventoryPrediction.Copy(p.inventory);
 	int totalResources = p.inventory.Sum();
 	if(totalResources > g.maxInventory) {
-		p.SetUIState(g,p, UserControl::ui_reslimit);
+		p.SetUIState<ResWaste>(g,p);
 	}
 }
