@@ -39,7 +39,7 @@ namespace CLI
 		/** remember color changes */
 		int m_fcolor, m_bcolor;
 		/** queues key input entered by the user */
-		char m_inputBuffer[40];
+		int m_inputBuffer[40];
 	public:
 		/** creates a non-double-buffered CommandLineInterface */
 		CommandLineInterface();
@@ -145,7 +145,7 @@ namespace CLI
 		void setInputBufferSize(int a_size){m_inputBufferSize=a_size;}
 
 		/** temporary input storage. note: not const, so modifiable */
-		char *getInputBuffer(){return m_inputBuffer;}
+		int* getInputBuffer(){return m_inputBuffer;}
 
 		/** refresh the standard output stream */
 		void refresh_stdout();

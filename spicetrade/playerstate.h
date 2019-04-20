@@ -9,7 +9,7 @@ class InventoryEditState : public PlayerState {
 		Player& p = *data.p;
 		p.inventoryPrediction.Copy(p.inventory);
 	}
-	virtual void Release () {}
+	virtual void Release () { }
 	virtual void ProcessInput (int key) {
 		Player::UpdateInventory(*data.g, *data.p, key);
 	}

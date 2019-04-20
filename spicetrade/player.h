@@ -12,7 +12,7 @@
 #define MAX_RESOURCES 10
 
 enum PredictionState {none, valid, invalid};
-enum UserControl {ui_none, ui_hand, ui_inventory, ui_cards, ui_acquire, ui_objectives, ui_upgrade};
+enum UserControl {ui_none, ui_hand, ui_reslimit, ui_cards, ui_acquire, ui_objectives, ui_upgrade};
 
 class Game;
 
@@ -60,6 +60,7 @@ class Player {
 	~Player(){ Release(); }
 
 	void SetConsoleColor(Game& g)const;
+	void SetConsoleColorBlink()const;
 
 	Player& Copy(const Player& toCopy) {
 		#define listop(n)		n.Copy(toCopy.n);
@@ -115,6 +116,8 @@ class Player {
 		handPrediction.Copy(hand);
 		playedPrediction.Copy(played);
 	}
+
+	static void FinishTurn(Game& g, Player& p);
 
 	// check if an action can be paid for with the given resources
 	static bool CanAfford (Game& g, const std::string& cost, List<int>& inventory);

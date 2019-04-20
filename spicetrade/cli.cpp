@@ -13,7 +13,7 @@ static CLI::CommandLineInterface * g_CLI = 0;
 // <prototypes>
 
 /** data struct for key escape sequences */
-struct EscapeTranslate{const int bytes; const char *sequence; const int code;};
+struct EscapeTranslate{const int sequence; const int code;};
 /** which escape sequences are valid on this platform */
 extern const EscapeTranslate * g_ESC_SEQ_LIST;
 /** how many valid escape sequences there are */
@@ -33,58 +33,51 @@ int returnKey(const EscapeTranslate * list, const int listCount, CLI::CommandLin
 
 #define _K(name)	CLI::KEY::name
 const EscapeTranslate listWin[] = {
-		{2, "\0\073",_K(F1)},
-		{2, "\0\074",_K(F2)},
-		{2, "\0\075",_K(F3)},
-		{2, "\0\076",_K(F4)},
-		{2, "\0\077",_K(F5)},
-		{2, "\0G",_K(HOME)},
-		{2, "\0H",_K(UP)},
-		{2, "\0I",_K(PAGE_UP)},
-		{2, "\0K",_K(LEFT)},
-		{2, "\0M",_K(RIGHT)},
-		{2, "\0O",_K(END)},
-		{2, "\0P",_K(DOWN)},
-		{2, "\340Q",_K(PAGE_DOWN)},
-		{2, "\0\100",_K(F6)},
-		{2, "\0\101",_K(F7)},
-		{2, "\0\102",_K(F8)},
-		{2, "\0\103",_K(F9)},
-		{2, "\0\104",_K(F10)},
-		{2, "\340H",_K(UP)},
-		{2, "\340\205",_K(F11)},
-		{2, "\340\206",_K(F12)},
-		{2, "\340G",_K(HOME)},
-		{2, "\340H",_K(UP)},
-		{2, "\340I",_K(PAGE_UP)},
-		{2, "\340K",_K(LEFT)},
-		{2, "\340M",_K(RIGHT)},
-		{2, "\340O",_K(END)},
-		{2, "\340P",_K(DOWN)},
-		{2, "\340Q",_K(PAGE_DOWN)},
-		{2, "\340R",_K(INSERT)},
-		{2, "\340S",_K(DELETEKEY)},
+		{0x00003b00,_K(F1)},
+		{0x00003c00,_K(F2)},
+		{0x00003d00,_K(F3)},
+		{0x00003e00,_K(F4)},
+		{0x00003f00,_K(F5)},
+		{0x00004000,_K(F6)},
+		{0x00004100,_K(F7)},
+		{0x00004200,_K(F8)},
+		{0x00004300,_K(F9)},
+		{0x00004400,_K(F10)},
+		{0x000085e0,_K(F11)},
+		{0x000086e0,_K(F12)},
+		{0x000048e0,_K(UP)},
+		{0x00004be0,_K(LEFT)},
+		{0x00004de0,_K(RIGHT)},
+		{0x000047e0,_K(HOME)},
+		{0x00004fe0,_K(END)},
+		{0x000049e0,_K(PAGE_UP)},
+		{0x000050e0,_K(DOWN)},
+		{0x000051e0,_K(PAGE_DOWN)},
+		{0x000052e0,_K(INSERT)},
+		{0x000053e0,_K(DELETEKEY)},
 };
 const EscapeTranslate listTTY[] = {
-		{3, "\033OH",_K(HOME)},
-		{3, "\033OF",_K(END)},
-		{3, "\033OQ",_K(F2)},
-		{3, "\033OR",_K(F3)},
-		{3, "\033OS",_K(F4)},
-		{5, "\033[15~",_K(F5)},
-		{5, "\033[17~",_K(F6)},
-		{5, "\033[18~",_K(F7)},
-		{5, "\033[19~",_K(F8)},
-		{3, "\033[A",_K(UP)},
-		{3, "\033[B",_K(DOWN)},
-		{3, "\033[C",_K(RIGHT)},
-		{3, "\033[D",_K(LEFT)},
-		{4, "\033[2~",_K(INSERT)},
-		{5, "\033[20~",_K(F9)},
-		{5, "\033[24~",_K(F12)},
-		{4, "\033[3~",_K(DELETEKEY)},
-		{4, "\033[5~",_K(PAGE_UP)},
-		{4, "\033[6~",_K(PAGE_DOWN)},
+	// TODO platform_conio was developed since this lib was used.
+		// {3, "\033OH",_K(HOME)},
+		// {3, "\033OF",_K(END)},
+		// {3, "\033OQ",_K(F2)},
+		// {3, "\033OR",_K(F3)},
+		// {3, "\033OS",_K(F4)},
+		// {5, "\033[15~",_K(F5)},
+		// {5, "\033[17~",_K(F6)},
+		// {5, "\033[18~",_K(F7)},
+		// {5, "\033[19~",_K(F8)},
+		// {3, "\033[A",_K(UP)},
+		// {3, "\033[B",_K(DOWN)},
+		// {3, "\033[C",_K(RIGHT)},
+		// {3, "\033[D",_K(LEFT)},
+		// {4, "\033[2~",_K(INSERT)},
+		// {5, "\033[20~",_K(F9)},
+		// {5, "\033[24~",_K(F12)},
+		// {4, "\033[3~",_K(DELETEKEY)},
+		// {4, "\033[5~",_K(PAGE_UP)},
+		// {4, "\033[6~",_K(PAGE_DOWN)},
+		{0,0}
 };
 #undef _K
 
@@ -378,29 +371,33 @@ void CLI::setSize(int width, int height){g_CLI->setSize(width,height);}
 
 /**
  * @param value __OUT will be the next special value from the input buffer
- * @param bytesRead __OUT how many bytes make up the next special value
  * @param list listWin or listTTY
  * @param listCount sizeof(list___)/sizeof(*list___)
  */
-void translateSpecialCharacters(int & value, int & bytesRead,
-		const EscapeTranslate * list, const int listCount, CLI::CommandLineInterface * a_this)
+int translateSpecialCharacters(const int& value,
+		const EscapeTranslate * list, const int listCount)
 {
-	int len;
-	bool found = false;
-	const char *bufr = a_this->getInputBuffer();
-	int bufrSize = a_this->getInputBufferSize();
-	for(int li = 0; !found && li < listCount; ++li) {
-		len = list[li].bytes;
-		found = true;
-		for(int i = 0; found && i < len; ++i) {
-			if(i >= bufrSize)break;
-			found = (list[li].sequence[i] == bufr[i]);
-		}
-		if(found) {
-			value = list[li].code;
-			bytesRead = len;
-		}
+	int translated = 0;
+	for(int i = 0; i < listCount; ++i) {
+		if(list[i].sequence == value) { translated = list[i].code; break; }
 	}
+	// //int len;
+	// bool found = false;
+	// const int *bufr = a_this->getInputBuffer();
+	// int bufrSize = a_this->getInputBufferSize();
+	// for(int li = 0; !found && li < listCount; ++li) {
+	// 	// len = list[li].bytes;
+	// 	// found = true;
+	// 	// for(int i = 0; found && i < len; ++i) {
+	// 	// 	if(i >= bufrSize)break;
+	// 	// 	found = (list[li].sequence[i] == bufr[i]);
+	// 	// }
+	// 	found = list[li].sequence == bufr[0];
+	// 	if(found) {
+	// 		value = list[li].code;
+	// 		//bytesRead = len;
+	// 	}
+	// }
 //#define TESTING_KEYCODES
 #ifdef TESTING_KEYCODES
 	// really ugly test code to discover new special key sequences
@@ -422,6 +419,7 @@ void translateSpecialCharacters(int & value, int & bytesRead,
 		bytesRead = bufrSize;
 	}
 #endif
+	return translated;
 }
 
 /**
@@ -431,20 +429,13 @@ void translateSpecialCharacters(int & value, int & bytesRead,
  */
 int returnKey(const EscapeTranslate * list, const int listCount, CLI::CommandLineInterface * a_CLI) {
 	int bufrSize = a_CLI->getInputBufferSize();
-	const char *bufr = a_CLI->getInputBuffer();
-	// if a multi-byte escape sequence was found in the input buffer
-	if(bufrSize > 1){
-		int value = 0, bytesRead = 0;
-		translateSpecialCharacters(value, bytesRead, list, listCount, a_CLI);
-		if(bytesRead){
-			a_CLI->inputBufferConsume(bytesRead);
-			return value;
-		}
-	}
+	const int *bufr = a_CLI->getInputBuffer();
 	// if there is input in the buffer at all
-	if(bufrSize > 0)
-	{
+	if(bufrSize > 0) {
 		int result = bufr[0];
+		if(result >= 128 || result < -128) { // and if that input is non-standard
+			result = translateSpecialCharacters(result, list, listCount);
+		}
 		a_CLI->inputBufferConsume(1);
 		return result;
 	}
@@ -654,8 +645,8 @@ void platform_setColor(int foreground, int background)
 /** non-blocking key press, returns -1 if there is no key */
 int CLI::getchar() {
 	if(g_CLI){
-		int bufrSize = g_CLI->getInputBufferSize();
-		char * bufr = g_CLI->getInputBuffer();
+		int bufrSize = g_CLI->getInputBufferSize();\
+		int * bufr = g_CLI->getInputBuffer();
 		while(platform_kbhit()){
 			bufr[bufrSize++] = platform_getchar();
 		}

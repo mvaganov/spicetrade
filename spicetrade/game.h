@@ -47,15 +47,15 @@ public:
 	static const int MOVE_CANCEL = 1, MOVE_UP = 2, MOVE_LEFT = 3, MOVE_DOWN = 4, MOVE_RIGHT = 5, MOVE_ENTER = 6, MOVE_ENTER2 = 7, MOVE_COUNT = 7;
 
 	void ConvertKeyToPlayerMove(int key, int& out_player, int& out_move) {
-		const char* moves[] = {
-			"qwasdex",
-			"\bijkl\n\r",
-			"-842605"
-		};
+		const int p0[] = {'q','w','a','s','d','e','x'};
+		const int p1[] = {'u','i','j','k','l','o','m'};
+		const int p2[] = {'\n',CLI::KEY::UP,CLI::KEY::LEFT,CLI::KEY::DOWN,CLI::KEY::RIGHT,'\n','\r'};
+		const int p3[] = {'-','8','4','2','6','0', '5'};
+		const int* moves[] = { p0, p1, p2, p3 };
 		const int num_player_controls = sizeof(moves)/sizeof(moves[0]);
 		out_player = out_move = -1;
 		for(int p = 0; p < num_player_controls && out_player < 0; ++p) {
-			out_move = List<const char>::IndexOf((const char)key, moves[p], 0, MOVE_COUNT);
+			out_move = List<const int>::IndexOf(key, moves[p], 0, MOVE_COUNT);
 			if(out_move != -1) {
 				out_move += 1; // move codes start at 1, so 0 can be a null value
 				out_player = p;
@@ -216,8 +216,10 @@ public:
 		default: {
 			int playerID, moveID;
 			ConvertKeyToPlayerMove(userInput, playerID, moveID);
-			if(playerID >= 0) {
+			if(playerID >= 0 && playerID < this->players.Length()) {
 				Player::UpdateInput(*this, *GetPlayer(playerID), moveID);
+			} else {
+				printf("did not understand %d\n", userInput);
 			}
 		}	break;
 		}

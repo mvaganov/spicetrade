@@ -29,7 +29,6 @@
 //x [upgrade action] - state_upgrade - select X resources to upgrade
 //x [rest action] - put played cards back into hand
 
-// TODO force resource reconcile (down to max) after turn is passed. require reconcile finish before new turn starts
 // TODO implement winning
 // TODO re-implement predictions
 // TODO fix upgrade UI during predictions
@@ -61,5 +60,6 @@ int main (int argc, const char** argv) {
 		g.RefreshInput();
 		g.Update();
 	}
+	CLI::release();
 	return 0;
 }

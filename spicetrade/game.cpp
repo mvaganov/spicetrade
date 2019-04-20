@@ -68,7 +68,7 @@ void Game::UpdateObjectiveBuy(Game&g, Player& p, int userInput) {
 					?g.achievement_deck.PopLast() : NULL;
 				// add achievement to the player's achievements
 				p.achieved.Add(userObj);
-				g.NextTurn();
+				Player::FinishTurn(g,p);
 			}
 		}
 	}
@@ -90,7 +90,7 @@ void GainSelectedMarketCard(Game& g, Player& p) {
 	g.acquireBonus[g.acquireBonus.Length()-1] = NULL;
 	p.marketCardToBuy = -1;
 	p.SetUIState(g,p,UserControl::ui_cards); //p.ui = UserControl::ui_cards;
-	g.NextTurn();
+	Player::FinishTurn(g,p);
 }
 
 void Game::UpdateAcquireMarket(Game& g, Player& p, int userInput) {
@@ -263,9 +263,10 @@ void Game::PrintMarket(Game& g, Coord cursor) {
 		CLI::setColor(CLI::COLOR::WHITE, -1);
 		const Player* p = NULL;
 		for(int pi = 0; pi < g.playerUIOrder.Length(); ++pi) {
-			if(g.playerUIOrder[pi]->marketCursor == i 
-			&&(g.playerUIOrder[pi]->ui == UserControl::ui_cards || g.playerUIOrder[pi]->ui == UserControl::ui_acquire)) {
-				p = g.playerUIOrder[pi];
+			Player* tp = g.playerUIOrder[pi];
+			if(tp->marketCursor == i && tp->marketCardToBuy
+			&&(tp->ui == UserControl::ui_cards || tp->ui == UserControl::ui_acquire)) {
+				p = tp;
 				break;
 			}
 		}
@@ -283,9 +284,9 @@ void Game::PrintMarket(Game& g, Coord cursor) {
 			if(currentPlayer && i < currentPlayer->marketCardToBuy && g.resourcePutInto[i] == -1) {
 				background = CLI::COLOR::RED;
 			}
-			Player::PrintInventory(g, *p, background, 1, (p != NULL && currentPlayer->ui == UserControl::ui_acquire), *(g.acquireBonus[i]), 
+			Player::PrintInventory(g, *p, background, 1, (p == currentPlayer && currentPlayer->ui == UserControl::ui_acquire), *(g.acquireBonus[i]), 
 				g.collectableResources, cursor, 
-				(p && i < currentPlayer->marketCardToBuy)?currentPlayer->inventoryCursor:-1);
+				(p == currentPlayer && i < currentPlayer->marketCardToBuy)?currentPlayer->inventoryCursor:-1);
 			CLI::setColor(CLI::COLOR::WHITE, -1);
 		} else {
 			CLI::resetColor();

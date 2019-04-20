@@ -6,11 +6,15 @@ void Player::SetConsoleColor(Game& g) const {
 	if(g.GetCurrentPlayer() != this) {
 		CLI::setColor(fcolor,bcolor);
 	} else {
-		if((CLI::upTimeMS() & (1 << 9)) == 0){
-			CLI::setColor(bcolor,fcolor);
-		} else {
-			CLI::setColor(fcolor,bcolor);
-		}
+		SetConsoleColorBlink();
+	}
+}
+
+void Player::SetConsoleColorBlink() const {
+	if((CLI::upTimeMS() & (1 << 9)) == 0){
+		CLI::setColor(bcolor,fcolor);
+	} else {
+		CLI::setColor(fcolor,bcolor);
 	}
 }
 
@@ -109,7 +113,7 @@ bool MorphResource(int index, List<int>& inventory, bool upgrade) {
 	return false;
 }
 
-void ModeInventoryCursor(Player& p, bool right) {
+void MoveInventoryCursor(Player& p, bool right) {
 	if(right) {
 		p.inventoryCursor++;
 		if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
@@ -134,8 +138,8 @@ void Player::UpdateUpgrade(Game& g, Player& p, int userInput) {
 			p.upgradesMade--;
 		}
 		break;
-	case Game::MOVE_LEFT: ModeInventoryCursor(p, false); break;
-	case Game::MOVE_RIGHT: ModeInventoryCursor(p, true); break;
+	case Game::MOVE_LEFT: MoveInventoryCursor(p, false); break;
+	case Game::MOVE_RIGHT: MoveInventoryCursor(p, true); break;
 	case Game::MOVE_ENTER: case Game::MOVE_ENTER2:
 		p.SetUIState(g,p,UserControl::ui_hand);
 		break;
@@ -238,7 +242,7 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 				bool canDoIt = toPlay != NULL && CanAfford (g, toPlay->input, p.inventory);
 				if (canDoIt) {
 					PlayAction::DoIt(g, p, toPlay);
-					g.NextTurn();
+					Player::FinishTurn(g,p);
 				}
 			}
 		}
@@ -255,12 +259,15 @@ void Player::UpdateInventory(Game& g, Player& p, int userInput) {
 		case Game::MOVE_DOWN:
 			p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]-1,0,p.inventory[p.inventoryCursor]);
 			break;
-		case Game::MOVE_LEFT: ModeInventoryCursor(p, false); break;
-		case Game::MOVE_RIGHT:ModeInventoryCursor(p, true);  break;
-		case Game::MOVE_ENTER: case Game::MOVE_ENTER2:
-			p.SetUIState(g,p,UserControl::ui_hand); //p.ui = UserControl::ui_hand;
-			p.inventory.Copy(p.inventoryPrediction);
-			break;
+		case Game::MOVE_LEFT: MoveInventoryCursor(p, false); break;
+		case Game::MOVE_RIGHT:MoveInventoryCursor(p, true);  break;
+		case Game::MOVE_ENTER: case Game::MOVE_ENTER2: {
+			int total = p.inventoryPrediction.Sum();
+			if(total <= g.maxInventory) {
+				p.inventory.Copy(p.inventoryPrediction);
+				p.SetUIState(g,p,UserControl::ui_hand); //p.ui = UserControl::ui_hand;
+			}
+		}	break;
 	}
 }
 
@@ -274,7 +281,7 @@ void Player::SetUIState(Game& g, Player& p, UserControl ui) {
 	PlayerState* next = NULL;
 	switch(ui) {
 	case UserControl::ui_hand:      next = NEWMEM(HandState);               break;
-	case UserControl::ui_inventory: next = NEWMEM(InventoryEditState);      break;
+	case UserControl::ui_reslimit:  next = NEWMEM(InventoryEditState);      break;
 	case UserControl::ui_cards:     next = NEWMEM(MarketCardSelectState);   break;
 	case UserControl::ui_acquire:   next = NEWMEM(MarketCardPaymentState);  break;
 	case UserControl::ui_upgrade:   next = NEWMEM(InventoryUpgradeState);   break;
@@ -363,18 +370,21 @@ void Player::PrintInventory(Game& g, const Player& p, int background, int number
 	sprintf(formatBuffer, "%%%dd", numberWidth);
 	for (int i = 0; i < inventory.Length (); ++i) {
 		if(i == selected) {
-			p.SetConsoleColor(g);CLI::putchar('>');CLI::setColor (fcolor, background);
+			if(p.ui == UserControl::ui_reslimit){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
+			CLI::putchar('>');CLI::setColor (fcolor, background);
 		} else { CLI::putchar(' '); }
 		CLI::setColor (collectableResources[i]->color);
 		if(showZeros || inventory[i] != 0) {
 			CLI::printf (formatBuffer, inventory[i]);
 			if(i == selected) {
-				p.SetConsoleColor(g);CLI::putchar('<');CLI::setColor(fcolor, background);
+			if(p.ui == UserControl::ui_reslimit){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
+				CLI::putchar('<');CLI::setColor(fcolor, background);
 			} else { CLI::printf ("%c", collectableResources[i]->icon); }
 		} else {
 			for(int c=0;c<numberWidth;++c) { CLI::putchar(' '); }
 			if(i == selected) {
-				p.SetConsoleColor(g);CLI::putchar('<');CLI::setColor(fcolor, background);
+				if(p.ui == UserControl::ui_reslimit){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
+				CLI::putchar('<');CLI::setColor(fcolor, background);
 			} else { CLI::putchar(' '); }
 		}
 	}
@@ -385,12 +395,12 @@ void Player::PrintResourcesInventory(Game& g, Coord cursor, Player& p){
 	CLI::resetColor();
 	if(p.validPrediction == PredictionState::valid || p.validPrediction == PredictionState::invalid) {
 		PrintInventory(g, p, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, 
-			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1); cursor.y+=1;
+			(p.ui==UserControl::ui_reslimit)?p.inventoryCursor:-1); cursor.y+=1;
 		// draw fake resources... or warning message
 		PrintInventory(g, p, p.validPrediction?CLI::COLOR::BLACK:CLI::COLOR::RED, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, 
-			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1);
+			(p.ui==UserControl::ui_reslimit)?p.inventoryCursor:-1);
 	} else {
-		if(p.ui==UserControl::ui_inventory || p.ui==UserControl::ui_upgrade) {
+		if(p.ui==UserControl::ui_reslimit || p.ui==UserControl::ui_upgrade) {
 			// if modifying the inventory, show the prediction, which is the modifying list
 			PrintInventory(g, p, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, p.inventoryCursor);
 		} else {
@@ -436,5 +446,14 @@ void Player::PrintUserState(Game& g, Coord cursor, const Player & p) {
 		CLI::setColor(f, b);
 		CLI::putchar('*');
 		cursor.x-=1;
+	}
+}
+
+void Player::FinishTurn(Game& g, Player& p) {
+	g.NextTurn();
+	p.inventoryPrediction.Copy(p.inventory);
+	int totalResources = p.inventory.Sum();
+	if(totalResources > g.maxInventory) {
+		p.SetUIState(g,p, UserControl::ui_reslimit);
 	}
 }

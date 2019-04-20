@@ -1,3 +1,4 @@
+# http://www.cs.colby.edu/maxwell/courses/tutorials/maketutor/
 EXE=spicetrade.exe
 CC=g++
 CFLAGS= -std=gnu++11
