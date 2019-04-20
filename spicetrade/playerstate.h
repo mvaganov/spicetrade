@@ -3,7 +3,7 @@
 
 // reconcile resources down to 10
 class ResWaste : public PlayerState {
-	virtual const char* GetName () { return "resource management"; };
+	virtual std::string GetName () { return "resource management"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
 		Player& p = *data.p;
@@ -17,7 +17,7 @@ class ResWaste : public PlayerState {
 
 // upgrade and upgrade prediction
 class ResUpgrade : public PlayerState {
-	virtual const char* GetName () { return "upgrading resources"; };
+	virtual std::string GetName () { return "upgrading resources"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
 		Player& p = *data.p;
@@ -39,7 +39,7 @@ class ResUpgrade : public PlayerState {
 // predicting card impact on inventory
 // re-ordering cards
 class HandManage : public PlayerState {
-	virtual const char* GetName () { return "card management"; };
+	virtual std::string GetName () { return "card management"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
 		Player& p = *data.p;
@@ -60,7 +60,7 @@ class HandManage : public PlayerState {
 };
 
 class CardBuy : public PlayerState {
-	virtual const char* GetName () { return "selecting next card"; };
+	virtual std::string GetName () { return "selecting next card"; };
 	virtual void Init (const GamePlayer& a_data) { PlayerState::Init(a_data); }
 	virtual void Release () {}
 	virtual void ProcessInput (int key) {
@@ -69,7 +69,7 @@ class CardBuy : public PlayerState {
 };
 
 class CardBuyDeep : public PlayerState {
-	virtual const char* GetName () { return "acquiring next card"; };
+	virtual std::string GetName () { return "acquiring next card"; };
 	virtual void Init (const GamePlayer& a_data) {
 		PlayerState::Init(a_data);
 		Game& g = *data.g;
@@ -90,7 +90,7 @@ class CardBuyDeep : public PlayerState {
 };
 
 class ObjectiveBuy : public PlayerState {
-	virtual const char* GetName () { return "selecting objective"; };
+	virtual std::string GetName () { return "selecting objective"; };
 	virtual void Init (const GamePlayer& a_data) { PlayerState::Init(a_data); }
 	virtual void Release () {}
 	virtual void ProcessInput (int key) {
@@ -98,9 +98,24 @@ class ObjectiveBuy : public PlayerState {
 	}
 };
 
-class Won : public PlayerState {
-	virtual const char* GetName () { return "WINNER!"; };
-	virtual void Init (const GamePlayer& a_data) { PlayerState::Init(a_data); }
+class Finished : public PlayerState {
+	int score;
+	std::string message;
+public:
+	void FinalMessage(int score, bool winner) {
+		if(winner){
+			message = "WINNING SCORE: "+std::to_string(score);
+		} else {
+			message = "final score: "+std::to_string(score);
+		}
+	}
+	virtual std::string GetName () { return message; };
+	virtual void Init (const GamePlayer& a_data) {
+		PlayerState::Init(a_data);
+		message = "calculating...";
+	}
 	virtual void Release () {}
-	virtual void ProcessInput (int key) {}
+	virtual void ProcessInput (int key) {
+		//FinalMessage(Player::CalculateScore(*(data.p)), false);
+	}
 };

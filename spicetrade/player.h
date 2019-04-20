@@ -28,13 +28,14 @@ class Player {
 	VList<const PlayAction*> handPrediction;
 	VList<const PlayAction*> playedPrediction;
 	List<int> inventoryPrediction;
+
 	VList<int> selected; // TODO rename selectedCards
-	Dictionary<int, int> selectedMark;
-	PredictionState validPrediction;
+	Dictionary<int, int> selectedMark; // TODO rename selectedCards
+	PredictionState validPrediction; // TODO rename selectedPrecition
 
-	PlayerState* uistate;
+	PlayerState* uistate;	// TODO rename state
 
-	int inventoryCursor;
+	int inventoryCursor; // TODO rename resourceCursor
 	int handOffset;
 	int currentRow; // TODO rename handCursor
 	int marketCursor;
@@ -117,7 +118,7 @@ class Player {
 		playedPrediction.Copy(played);
 	}
 
-	static int CalculatePoints(Player& p) {
+	static int CalculateScore(Player& p) {
 		int total = 0;
 		// count objectives
 		for(int i = 0; i < p.achieved.Count(); ++i) {
@@ -139,7 +140,7 @@ class Player {
 
 	static bool InventoryValid(const List<int>& inventory);
 
-	static void AddResources (Game& g, int& upgradesToDo, const PlayAction* card, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played);
+	static void AddResources (Game& g, int& upgradesToDo, const std::string& resources, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played);
 
 	static bool Calculate(Game& g, int& upgradesToDo, VList<const PlayAction*>& hand, VList<const PlayAction*>& played,
 	VList<int>& selected, List<int>& prediction);
@@ -153,9 +154,9 @@ class Player {
 
 	// entire template function must be in class declaration.
 	template <typename T>
-	static void SetUIState(Game& g, Player& p) {
+	static T* SetUIState(Game& g, Player& p) {
 		bool oldState = Player::IsState<T>(p);
-		if(oldState) { return; }
+		if(oldState) { return (T*)p.uistate; }
 		PlayerState* next = NEWMEM(T);
 		if(p.uistate != NULL) {
 			p.uistate->Release();
@@ -163,6 +164,7 @@ class Player {
 		}
 		p.uistate = next;
 		next->Init(GamePlayer(&g, &p));
+		return (T*)next;
 	}
 
 	// event handling

@@ -58,15 +58,13 @@ bool Player::InventoryValid(const List<int>& inventory) {
 	return valid;
 }
 
-void Player::AddResources (Game& g, int& upgradesToDo, const PlayAction* card, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played) {
-	if(card == NULL) return;
-	std::string output = card->output;
-	if (output == "cards") {
+void Player::AddResources (Game& g, int& upgradesToDo, const std::string& resources, List<int>& inventory, VList<const PlayAction*>& hand, VList<const PlayAction*>& played) {
+	if (resources == "cards") {
 		hand.Insert (hand.Count (), played.GetData (), played.Count ());
 		played.Clear ();
 	} else {
-		for (int i = 0; i < output.length (); ++i) {
-			char c = output[i];
+		for (int i = 0; i < resources.length (); ++i) {
+			char c = resources[i];
 			if (c == '+') {
 				upgradesToDo++;
 			} else {
@@ -82,15 +80,13 @@ void Player::AddResources (Game& g, int& upgradesToDo, const PlayAction* card, L
 
 bool Player::Calculate(Game& g, int& upgradesToDo, VList<const PlayAction*>& hand, VList<const PlayAction*>& played,
 	VList<int>& selected, List<int>& prediction) {
-	bool affordable = true;
 	for(int i = 0; i < selected.Count(); ++i) {
 		const PlayAction* card = hand[selected[i]];
 		SubtractResources(g, card->input, prediction);
-		AddResources(g, upgradesToDo, card, prediction, hand, played);
-		bool canDoIt = InventoryValid(prediction);
-		if(!canDoIt) { affordable = false; }
+		AddResources(g, upgradesToDo, card->output, prediction, hand, played);
+		if(!InventoryValid(prediction)) { return false; }
 	}
-	return affordable;
+	return true;
 }
 
 void Player::RefreshPrediction(Game& g, Player& p) {

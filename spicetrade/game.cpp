@@ -1,7 +1,8 @@
 #include "game.h"
 #include "playerstate.h"
+#include "gamestate.h"
 
-void Game::Draw() {
+void Game::NormalDraw() {
 	for(int i = 0; i < GetPlayerCount(); ++i) {
 		int column = (i*20);
 		Player& p = *GetPlayer(i);
@@ -17,7 +18,55 @@ void Game::RefreshInput() {
 		CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1); // reset color
 		CLI::move(0,0);
 		SetInput(CLI::getch ());
-	} else { CLI::sleep(50); }
+	} else { CLI::sleep(throttle); }
+}
+
+void Game::Init() {
+	throttle = 50;
+	m_running = true;
+	handDisplayCount = 10;
+	goldLeft = 5;
+	silverLeft = 5;
+	maxInventory = 10;
+
+	for (int i = 0; i < g_len_resources; ++i) {
+		resourceLookup.Set (g_resources[i].icon, &(g_resources[i]));
+		if (g_resources[i].type == ResourceType::Type::resource) {
+			collectableResources.Add (&(g_resources[i]));
+			resourceIndex.Set (g_resources[i].icon, i);
+		}
+	}
+	play_deck.EnsureCapacity(g_len_play_deck);
+	for (int i = 0; i < g_len_play_deck; ++i) {
+		play_deck.Add (&(g_play_deck[i]));
+	}
+	platform_shuffle (play_deck.GetData (), 0, play_deck.Count ());
+	achievement_deck.EnsureCapacity(g_len_objective);
+	for (int i = 0; i < g_len_objective; ++i) {
+		achievement_deck.Add (&(g_objective[i]));
+	}
+	platform_shuffle (achievement_deck.GetData (), 0, achievement_deck.Count ());
+
+	achievements.SetLength(achievementCards);
+	achievements.SetAll(NULL);
+	for (int i = 0; i < achievements.Length(); ++i) {
+		if(achievement_deck.Count() > 0) {
+			achievements.Set(i, achievement_deck.PopLast ());
+		}
+	}
+	market.SetLength(marketCards);
+	market.SetAll(NULL);
+	for (int i = 0; i < market.Length(); ++i) {
+		if(play_deck.Count() > 0){
+			market.Set(i, play_deck.PopLast ());
+		}
+	}
+
+	acquireBonus.SetLength(market.Length());
+	acquireBonus.SetAll(NULL);
+	resourcePutInto.SetLength(market.Length()-1);
+
+	Game::SetState<GameNormal>(*this);
 }
 
 void Game::InitPlayers(int playerCount) {
@@ -44,16 +93,14 @@ void Game::InitPlayers(int playerCount) {
 	// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
 }
 
-void CalculateTheWin(Game& g) {
-	List<int> scores(g.players.Length());
-	int winner = 0;
-	for(int i = 0; i < g.players.Length(); ++i) {
-		int s = Player::CalculatePoints(g.players[i]);
-		scores[i] = s;
-		if(scores[i] > scores[winner]) { winner = i; }
+bool Game::IsEvenOnePlayerIsResourceManaging(const List<Player*>& players) {
+	for(int i = 0; i < players.Length(); ++i) {
+		const Player& p = *players[i];
+		if( Player::IsState<ResWaste>(p) || Player::IsState<ResUpgrade>(p) || p.upgradeChoices > 0) {
+			return true;
+		}
 	}
-	Player& p = g.players[winner];
-	Player::SetUIState<Won>(g, p);
+	return false;
 }
 
 void Game::UpdateObjectiveBuy(Game&g, Player& p, int userInput) {
@@ -108,9 +155,15 @@ void Game::UpdateObjectiveBuy(Game&g, Player& p, int userInput) {
 				Player::FinishTurn(g,p);
 
 				// if this was the 6th card...
-				// check if the game will reclaculate scores at the end of this turn
-					// if somebody already triggered the win, calculate the win right now.
-				// mark that the game needs to calculate scores at the end of this turn
+				if(p.achieved.Count() >= Game::COUNT_OBJECTIVE_TO_WIN) {
+					if(Game::IsState<GameNearlyOver>(g)) {
+						// if somebody already triggered the win, calculate the win right now.
+						Game::SetState<GameOver>(g);
+					} else {
+						// mark that the game needs to calculate scores at the end of this turn
+						Game::SetState<GameNearlyOver>(g);
+					}
+				}
 			}
 		}
 	}

@@ -163,11 +163,12 @@ inline long platform_getchar () {
 	if (!platform_kbhit ())
 		return -1;
 	input = _getch ();
+	int bytes = 0;
 	switch ((char)input) {
 	case '\0':
 	case '\340':
 		if (_kbhit ()) {
-			long nextByte = _getch ();
+			long nextByte = _getch (); // grabbing 2 bytes works great for windows.
 			input |= (nextByte & 0xff) << 8;
 		}
 	}

@@ -18,8 +18,10 @@ class Game
 	/** how many updates have happened */
 	unsigned int updates;
 	/** the current (and pending) UI */
-	Queue<GameState*> * m_stateQueue;
+	//Queue<GameState*> * m_stateQueue;
+	GameState * m_state;
 
+	int throttle;
 public:
 	/** stores the next user input to process */
 	int userInput; // TODO make private
@@ -40,10 +42,10 @@ public:
 	int handDisplayCount = 10;
 	int goldLeft = 5, silverLeft = 5;
 	int maxInventory = 10;
-	int objectiveWinCount = 6;
+	static const int COUNT_OBJECTIVE_TO_WIN = 1;
 
-	static const int achievementCards = 5;
-	static const int marketCards = 6;
+	static const int achievementCards = 5; // TODO rename COUNT_OBJECTIVE_FIELD
+	static const int marketCards = 6; // TODO rename COUNT_MARKET_FIELD
 
 	static const int MOVE_CANCEL = 1, MOVE_UP = 2, MOVE_LEFT = 3, MOVE_DOWN = 4, MOVE_RIGHT = 5, MOVE_ENTER = 6, MOVE_ENTER2 = 7, MOVE_COUNT = 7;
 
@@ -67,50 +69,7 @@ public:
 		
 	}
 
-	void Init() {
-		m_running = true;
-		handDisplayCount = 10;
-		goldLeft = 5;
-		silverLeft = 5;
-		maxInventory = 10;
-
-		for (int i = 0; i < g_len_resources; ++i) {
-			resourceLookup.Set (g_resources[i].icon, &(g_resources[i]));
-			if (g_resources[i].type == ResourceType::Type::resource) {
-				collectableResources.Add (&(g_resources[i]));
-				resourceIndex.Set (g_resources[i].icon, i);
-			}
-		}
-		play_deck.EnsureCapacity(g_len_play_deck);
-		for (int i = 0; i < g_len_play_deck; ++i) {
-			play_deck.Add (&(g_play_deck[i]));
-		}
-		platform_shuffle (play_deck.GetData (), 0, play_deck.Count ());
-		achievement_deck.EnsureCapacity(g_len_objective);
-		for (int i = 0; i < g_len_objective; ++i) {
-			achievement_deck.Add (&(g_objective[i]));
-		}
-		platform_shuffle (achievement_deck.GetData (), 0, achievement_deck.Count ());
-
-		achievements.SetLength(achievementCards);
-		achievements.SetAll(NULL);
-		for (int i = 0; i < achievements.Length(); ++i) {
-			if(achievement_deck.Count() > 0) {
-				achievements.Set(i, achievement_deck.PopLast ());
-			}
-		}
-		market.SetLength(marketCards);
-		market.SetAll(NULL);
-		for (int i = 0; i < market.Length(); ++i) {
-			if(play_deck.Count() > 0){
-				market.Set(i, play_deck.PopLast ());
-			}
-		}
-
-		acquireBonus.SetLength(market.Length());
-		acquireBonus.SetAll(NULL);
-		resourcePutInto.SetLength(market.Length()-1);
-	}
+	void Init();
 
 	char ColorOfRes (char icon) {
 		const ResourceType* r = resourceLookup.Get (icon);
@@ -133,23 +92,42 @@ public:
 		}
 	}
 
-	/** add a game state to the queue */
-	void queueState(GameState * a_state){
-		m_stateQueue->Enqueue(a_state);
+	// /** add a game state to the queue */
+	// void queueState(GameState * a_state){
+	// 	m_stateQueue->Enqueue(a_state);
+	// }
+
+	// /** advance to the next state in the queue */
+	// void nextState() {
+	// 	GameState * state;
+	// 	if(m_stateQueue->Count() > 0){
+	// 		state = m_stateQueue->PopFront();
+	// 		state->Release();
+	// 		DELMEM(state);
+	// 	}
+	// 	if(m_stateQueue->Count() > 0){
+	// 		state = m_stateQueue->PeekFront();
+	// 		state->Init(this);
+	// 	}
+	// }
+
+	template<typename T>
+	static bool IsState(const Game& g) {
+		return g.m_state != NULL && dynamic_cast<T*>(g.m_state) != NULL;
 	}
 
-	/** advance to the next state in the queue */
-	void nextState() {
-		GameState * state;
-		if(m_stateQueue->Count() > 0){
-			state = m_stateQueue->PopFront();
-			state->Release();
-			DELMEM(state);
+	// entire template function must be in class declaration.
+	template <typename T>
+	static void SetState(Game& g) {
+		bool oldState = Game::IsState<T>(g);
+		if(oldState) { return; }
+		GameState* next = NEWMEM(T);
+		if(g.m_state != NULL) {
+			g.m_state->Release();
+			DELMEM(g.m_state);
 		}
-		if(m_stateQueue->Count() > 0){
-			state = m_stateQueue->PeekFront();
-			state->Init(this);
-		}
+		g.m_state = next;
+		next->Init(&g);
 	}
 
 	void InitStateMachine(){}
@@ -158,61 +136,76 @@ public:
 		CLI::init ();
 		CLI::setSize (width, height);
 		//CLI::setDoubleBuffered(true);
-		CLI::fillScreen (' ');
 		CLI::move (0, 0);
+		CLI::fillScreen (' ');
 	}
 
 	void InitPlayers(int playerCount);
 
-	Game(int numPlayers, int width, int height){
+	Game(int numPlayers, int width, int height):m_state(NULL) {
 		Init();
 		InitScreen(width,height);
 		InitPlayers(numPlayers);
 	}
-	void Release(){
+	void Release() {
 		for(int i = 0; i < acquireBonus.Length(); ++i) {
 			if(acquireBonus[i] != NULL) {
 				DELMEM(acquireBonus[i]);
 				acquireBonus[i] = NULL;
 			}
 		}
+		if(m_state) {
+			DELMEM(m_state);
+			m_state = NULL;
+		}
 		CLI::release ();
 	}
 	~Game(){Release();}
 
-	void Draw();
+	void Draw() {
+		m_state->Draw();
+	}
 
-	void SetInput(int a_input){ userInput=a_input; }
+	void NormalDraw();
+
+	void SetInput(int a_input) { userInput=a_input; }
 
 	void RefreshInput();
 
-	void ProcessInput(){
+	void ProcessInput() {
 		switch (userInput) {
 		case 27:
-			printf("quitting...                ");
+			printf("Quit!");
 			m_running = false;
 			break;
-		default: {
-			int playerID, moveID;
-			ConvertKeyToPlayerMove(userInput, playerID, moveID);
-			if(playerID >= 0 && playerID < this->players.Length()) {
-				Player::UpdateInput(*this, *GetPlayer(playerID), moveID);
-			} else {
-				printf("did not understand %d\n", userInput);
-			}
-		}	break;
+		default:
+			m_state->ProcessInput(userInput);
 		}
 		userInput = 0;
 	}
-
-	bool isAcceptingInput() {
-		GameState * state = m_stateQueue->Peek();
-		return !state->IsDone();
+	
+	void HandlePlayerInput(int userInput) {
+		int playerID, moveID;
+		ConvertKeyToPlayerMove(userInput, playerID, moveID);
+		if(playerID >= this->players.Length()) {
+			playerID = currentPlayer;
+		}
+		if(playerID >= 0) {
+			Player::UpdateInput(*this, *GetPlayer(playerID), moveID);
+		} else {
+			printf("did not understand %d\n", userInput);
+		}
 	}
+
+	// bool isAcceptingInput() {
+	// 	GameState * state = m_stateQueue->Peek();
+	// 	return !state->IsDone();
+	// }
 
 	void Update()
 	{
 		ProcessInput();
+		m_state->Update();
 		// GameState * state = m_stateQueue->Peek();
 		// if(state->IsDone())
 		// 	nextState();
@@ -226,8 +219,9 @@ public:
 	Player * GetPlayer(int index) {return &(players[index]);}
 	int GetPlayerCount() { return players.Length(); }
 
-
 	int GetCurrentPlayerIndex() { return currentPlayer; }
+
+	bool IsEvenOnePlayerIsResourceManaging(const List<Player*>& players);
 
 	static void UpdateObjectiveBuy(Game&g, Player& p, int userInput);
 	static void UpdateAcquireMarket(Game& g, Player& p, int userInput);

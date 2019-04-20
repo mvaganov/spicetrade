@@ -29,7 +29,7 @@ void PlayAction::PrintAction (Game& g, const PlayAction* a, int bg) {
 
 void PlayAction::DoIt(Game& g, Player& p, const PlayAction* a) {
 	Player::SubtractResources (g, a->input, p.inventory);
-	Player::AddResources (g, p.upgradeChoices, a, p.inventory, p.hand, p.played);
+	Player::AddResources (g, p.upgradeChoices, a->output, p.inventory, p.hand, p.played);
 	p.hand.RemoveAt (p.currentRow);
 	if (a->output == "cards") {
 		p.hand.Add (a);

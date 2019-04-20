@@ -514,7 +514,7 @@ int CLI::getcharBlocking(int a_ms)
 	refresh();
 	long long soon = CLI::upTimeMS()+a_ms;
 	while(!CLI::kbhit() && CLI::upTimeMS() < soon)
-		CLI::sleep(1);
+		platform_sleep(1);
 	return CLI::getchar();
 }
 
@@ -672,7 +672,8 @@ void CLI::setColor(int foreground, int background)
 /** pause the CPU for the given number of milliseconds */
 void CLI::sleep(int ms)
 {
-	::Sleep(ms);
+	platform_sleep(ms);
+	//::Sleep(ms);
 }
 
 /** how many milliseconds since initialization */

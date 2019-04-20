@@ -29,8 +29,7 @@
 //x [upgrade action] - state_upgrade - select X resources to upgrade
 //x [rest action] - put played cards back into hand
 
-// TODO implement Normal : GameState, NearlyOver : GameState, Over : GameState
-// TODO implement winning
+// TODO CLI double-buffering with dirty-characters (to prevent flickering and cursor blinking)
 // TODO re-implement predictions
 // TODO fix upgrade UI during predictions
 // TODO list actions that have happened in a history list:
