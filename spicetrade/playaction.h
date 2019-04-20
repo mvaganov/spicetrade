@@ -4,6 +4,7 @@
 #include <string>
 
 class Game;
+class Player;
 
 struct PlayAction {
 	//const char * input, * output;
@@ -39,4 +40,5 @@ struct PlayAction {
 		return result;
 	}
 	static void PrintAction (Game& g, const PlayAction* a, int bg);
+	static void DoIt(Game& g, Player& p, const PlayAction* a);
 };

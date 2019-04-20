@@ -4,6 +4,7 @@
 #include "cards.h"
 #include "state_base.h"
 #include "player.h"
+#include "graphics.h"
 #include "platform_random.h"
 
 class Game
@@ -35,7 +36,6 @@ public:
 	List<List<int>*> acquireBonus;
 	List<int> resourcePutInto; // used during acquire and upgrade UI
 
-	bool running = true;
 	// how many cards to display vertically at once (can scroll)
 	int handDisplayCount = 10;
 	int goldLeft = 5, silverLeft = 5;
@@ -66,8 +66,8 @@ public:
 		
 	}
 
-	void init() {
-		running = true;
+	void Init() {
+		m_running = true;
 		handDisplayCount = 10;
 		goldLeft = 5;
 		silverLeft = 5;
@@ -117,13 +117,11 @@ public:
 	}
 
 	/** @return whether or not the game wants to keep running */
-	bool isRunning(){return m_running;}
-	/** get a color for a frame-dependent color animation */
-	int flashColor(int style, Graphics * g);
+	bool IsRunning(){return m_running;}
 
-	int getTurn(){return turn;}
+	int GetTurn(){return turn;}
 
-	void nextTurn(){
+	void NextTurn() {
 		turn++;
 		currentPlayer++;
 		if(currentPlayer >= players.Length()) {
@@ -144,18 +142,18 @@ public:
 		GameState * state;
 		if(m_stateQueue->Count() > 0){
 			state = m_stateQueue->PopFront();
-			state->release();
+			state->Release();
 			DELMEM(state);
 		}
 		if(m_stateQueue->Count() > 0){
 			state = m_stateQueue->PeekFront();
-			state->init(this);
+			state->Init(this);
 		}
 	}
 
-	void initStateMachine(){}
+	void InitStateMachine(){}
 
-	void initScreen(int width, int height){
+	void InitScreen(int width, int height){
 		CLI::init ();
 		CLI::setSize (width, height);
 		//CLI::setDoubleBuffered(true);
@@ -163,7 +161,7 @@ public:
 		CLI::move (0, 0);
 	}
 
-	void initPlayers(int playerCount) {
+	void InitPlayers(int playerCount) {
 		int colors[] = {
 			CLI::COLOR::BRIGHT_RED, CLI::COLOR::RED, 
 			CLI::COLOR::BRIGHT_CYAN, CLI::COLOR::CYAN, 
@@ -181,15 +179,16 @@ public:
 			p->handPrediction.Copy(p->hand);
 			p->playedPrediction.Copy(p->played);
 			p->inventory[0] = 2; // start with 2 basic resource
+			Player::SetUIState(*this,*p,UserControl::ui_hand);
 		}
 		currentPlayer = 0;
 		// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
 	}
 
 	Game(int numPlayers, int width, int height){
-		init();
-		initScreen(width,height);
-		initPlayers(numPlayers);
+		Init();
+		InitScreen(width,height);
+		InitPlayers(numPlayers);
 	}
 	void Release(){
 		for(int i = 0; i < acquireBonus.Length(); ++i) {
@@ -207,18 +206,18 @@ public:
 	void SetInput(int a_input){ userInput=a_input; }
 
 	void RefreshInput();
-	
+
 	void ProcessInput(){
 		switch (userInput) {
 		case 27:
 			printf("quitting...                ");
-			running = false;
+			m_running = false;
 			break;
 		default: {
 			int playerID, moveID;
 			ConvertKeyToPlayerMove(userInput, playerID, moveID);
 			if(playerID >= 0) {
-				Player::UpdateInput(*GetPlayer(playerID), *this, moveID);
+				Player::UpdateInput(*this, *GetPlayer(playerID), moveID);
 			}
 		}	break;
 		}
@@ -227,31 +226,31 @@ public:
 
 	bool isAcceptingInput() {
 		GameState * state = m_stateQueue->Peek();
-		return !state->isDone();
+		return !state->IsDone();
 	}
 
 	void Update()
 	{
 		ProcessInput();
-		GameState * state = m_stateQueue->Peek();
-		if(state->isDone())
-			nextState();
+		// GameState * state = m_stateQueue->Peek();
+		// if(state->IsDone())
+		// 	nextState();
 		updates++;
 	}
 
-	Player * GetCurrentPlayer(){
+	Player * GetCurrentPlayer() {
 		return playerUIOrder[0];
 	}
 
-	Player * GetPlayer(int index){return &(players[index]);}
+	Player * GetPlayer(int index) {return &(players[index]);}
 	int GetPlayerCount() { return players.Length(); }
 
 
 	int GetCurrentPlayerIndex() { return currentPlayer; }
 
 	static void UpdateObjectiveBuy(Game&g, Player& p, int userInput);
-	static void UpdateAcquireMarket(Player& p, Game& g, int userInput);
-	static void UpdateMarket(Player& p, int userInput, Game& g);
+	static void UpdateAcquireMarket(Game& g, Player& p, int userInput);
+	static void UpdateMarket(Game& g, Player& p, int userInput);
 	static void PrintAchievements(Game& g, Coord cursor);
 	static void PrintMarket(Game& g, Coord cursor);
 };

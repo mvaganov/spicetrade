@@ -6,11 +6,13 @@
 #include "playaction.h"
 #include <string>
 #include "dictionary.h"
+#include "state_base.h"
+#include "vector2.h"
 
 #define MAX_RESOURCES 10
 
 enum PredictionState {none, valid, invalid};
-enum UserControl {ui_hand, ui_inventory, ui_cards, ui_acquire, ui_objectives, ui_upgrade};
+enum UserControl {ui_none, ui_hand, ui_inventory, ui_cards, ui_acquire, ui_objectives, ui_upgrade};
 
 class Game;
 
@@ -30,8 +32,9 @@ class Player {
 	VList<int> selected; // TODO rename selectedCards
 	Dictionary<int, int> selectedMark;
 	PredictionState validPrediction;
-	UserControl ui, lastState;
+	UserControl ui;
 
+	PlayerState* uistate;
 
 	int inventoryCursor;
 	int handOffset;
@@ -42,9 +45,19 @@ class Player {
 	int upgradesMade = 0;
 	int fcolor, bcolor;
 
-	Player():validPrediction(PredictionState::none),ui(UserControl::ui_hand),
+	Player():validPrediction(PredictionState::none),ui(UserControl::ui_none),
 		inventoryCursor(0),handOffset(0),currentRow(0),marketCursor(0),
-		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0),fcolor(-1),bcolor(-1){}
+		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0),fcolor(-1),bcolor(-1),uistate(NULL){}
+
+	void Release() {
+		if(uistate != NULL) {
+			uistate->Release();
+			DELMEM(uistate);
+			uistate = NULL;
+		}
+	}
+
+	~Player(){ Release(); }
 
 	void SetConsoleColor(Game& g)const;
 
@@ -55,7 +68,7 @@ class Player {
 		listop(selected);
 		#undef listop
 		#define cpy(v)	v=toCopy.v;
-		cpy(name);cpy(validPrediction);cpy(ui);cpy(lastState);
+		cpy(name);cpy(validPrediction);cpy(ui);
 		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
 		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
 		cpy(fcolor);cpy(bcolor);
@@ -63,13 +76,14 @@ class Player {
 		return *this;
 	}
 	Player& Move(Player & toMove) {
+		Release();
 		#define listop(n)		n.Move(toMove.n);
 		listop(achieved);	listop(hand);	listop(played);	listop(inventory);
 		listop(handPrediction);	listop(playedPrediction);	listop(inventoryPrediction);
 		listop(selected);
 		#undef listop
 		#define cpy(v)	v=toMove.v;
-		cpy(name);	cpy(validPrediction);	cpy(ui);cpy(lastState);
+		cpy(name);	cpy(validPrediction);	cpy(ui);
 		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
 		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
 		#undef cpy
@@ -102,10 +116,10 @@ class Player {
 		playedPrediction.Copy(played);
 	}
 
-	// check if an action can be paid for with the given resources TODO rename CanAfford
-	static bool CanPlay (Game& g, const PlayAction* toPlay, List<int>& inventory);
+	// check if an action can be paid for with the given resources
+	static bool CanAfford (Game& g, const std::string& cost, List<int>& inventory);
 
-	static bool SubtractResources (Game& g, const PlayAction* card, List<int>& inventory);
+	static bool SubtractResources (Game& g, const std::string& cost, List<int>& inventory);
 
 	static bool InventoryValid(const List<int>& inventory);
 
@@ -116,15 +130,17 @@ class Player {
 
 	static void RefreshPrediction(Game& g, Player& p);
 
+	static void SetUIState(Game& g, Player& p, UserControl ui);
+
 	// event handling
 	static void UpdateHand (Game& g, Player& p, int userInput, int count);
-	static void UpdateInventory(Player& p, int userInput);
-	static void UpdateUpgrade(Player& p, int userInput);
-	static void UpdateInput(Player& p, Game& g, int move);
+	static void UpdateInventory(Game& g, Player& p, int userInput);
+	static void UpdateUpgrade(Game& g, Player& p, int userInput);
+	static void UpdateInput(Game& g, Player& p, int move);
 
 	// drawing UI
 	static void PrintHand (Game& g, Coord pos, int count, Player& p);
-	static void PrintInventory(const Player& p, Game& g, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected);
-	static void PrintResourcesInventory(Coord cursor, Player& p, Game& g);
-	static void PrintUserState(Coord cursor, const Player & p, Game& g);
+	static void PrintInventory(Game& g, const Player& p, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected);
+	static void PrintResourcesInventory(Game& g, Coord cursor, Player& p);
+	static void PrintUserState(Game& g, Coord cursor, const Player & p);
 };

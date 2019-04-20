@@ -1,5 +1,6 @@
 #include "game.h"
 #include "player.h"
+#include "playerstate.h"
 
 void Player::SetConsoleColor(Game& g) const {
 	if(g.GetCurrentPlayer() != this) {
@@ -13,22 +14,19 @@ void Player::SetConsoleColor(Game& g) const {
 	}
 }
 
-bool Player::CanPlay (Game& g, const PlayAction* toPlay, List<int>& inventory) {
-	if(toPlay == NULL) return false;
+bool Player::CanAfford (Game& g, const std::string& cost, List<int>& inventory) {
 	List<int> testInventory (inventory); // TODO turn this into a static array and memcpy inventory?
-	SubtractResources (g, toPlay, testInventory);
+	SubtractResources (g, cost, testInventory);
 	return InventoryValid(testInventory);
 }
 
-bool Player::SubtractResources (Game& g, const PlayAction* card, List<int>& inventory) {
-	if(card == NULL) return false;
-	std::string input = card->input;
-	if (input == "reset") {
+bool Player::SubtractResources (Game& g, const std::string& cost, List<int>& inventory) {
+	if (cost == "reset") {
 		return true;
 	}
 	bool valid = true;
-	for (int i = 0; i < input.length (); ++i) {
-		char c = input[i];
+	for (int i = 0; i < cost.length (); ++i) {
+		char c = cost[i];
 		if (c == '.') {
 
 		} else {
@@ -68,7 +66,7 @@ void Player::AddResources (Game& g, int& upgradesToDo, const PlayAction* card, L
 				int* index = g.resourceIndex.GetPtr (c);
 				if (index == NULL) {
 					printf ("no such resource %c\n", c);
-				} // <-- here comes the crash
+				}
 				inventory[*index]++;
 			}
 		}
@@ -80,7 +78,7 @@ bool Player::Calculate(Game& g, int& upgradesToDo, VList<const PlayAction*>& han
 	bool canAfford = true;
 	for(int i = 0; i < selected.Count(); ++i) {
 		const PlayAction* card = hand[selected[i]];
-		SubtractResources(g, card, prediction);
+		SubtractResources(g, card->input, prediction);
 		AddResources(g, upgradesToDo, card, prediction, hand, played);
 		bool canDoIt = InventoryValid(prediction);
 		if(!canDoIt) { canAfford = false; }
@@ -98,42 +96,48 @@ void Player::RefreshPrediction(Game& g, Player& p) {
 	}
 }
 
-void Player::UpdateUpgrade(Player& p, int userInput) {
-	if(p.ui != p.lastState) {
-		p.inventoryPrediction.Copy(p.inventory);
-		p.upgradesMade = 0;
+bool MorphResource(int index, List<int>& inventory, bool upgrade) {
+	int whereToTake = index, whereToGive = index + (upgrade?+1:-1);
+	int len = inventory.Length();
+	if(whereToGive >= len){whereToGive -= len;}
+	if(whereToGive < 0)   {whereToGive += len;}
+	if(inventory[whereToTake] > 0) {
+		inventory[whereToTake]--;
+		inventory[whereToGive]++;
+		return true;
 	}
+	return false;
+}
+
+void ModeInventoryCursor(Player& p, bool right) {
+	if(right) {
+		p.inventoryCursor++;
+		if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
+	} else {
+		p.inventoryCursor--;
+		if(p.inventoryCursor<0) p.inventoryCursor = 0;
+	}
+}
+
+void Player::UpdateUpgrade(Game& g, Player& p, int userInput) {
 	switch(userInput) {
 	case Game::MOVE_UP:
-		if(p.upgradesMade < p.upgradeChoices && p.inventoryCursor < p.inventory.Length()-1 
-		&& p.inventoryPrediction[p.inventoryCursor] > 0) {
-			p.inventoryPrediction[p.inventoryCursor]--;
-			p.inventoryPrediction[p.inventoryCursor+1]++;
+		if(p.upgradesMade < p.upgradeChoices
+		&& MorphResource(p.inventoryCursor, p.inventoryPrediction, true)) {
 			p.upgradesMade++;
 		}
 		break;
 	case Game::MOVE_DOWN:
-		if(p.upgradesMade > 0 && p.inventoryCursor > 0 
-		&& p.inventoryPrediction[p.inventoryCursor] > 0
-		&& p.inventory[p.inventoryCursor] < p.inventoryPrediction[p.inventoryCursor]) {
-			p.inventoryPrediction[p.inventoryCursor]--;
-			p.inventoryPrediction[p.inventoryCursor-1]++;
+		if(p.upgradesMade > 0
+		&& p.inventory[p.inventoryCursor] < p.inventoryPrediction[p.inventoryCursor]
+		&& MorphResource(p.inventoryCursor, p.inventoryPrediction, false)) {
 			p.upgradesMade--;
 		}
 		break;
-	case Game::MOVE_LEFT:
-		p.inventoryCursor--;
-		if(p.inventoryCursor<0) p.inventoryCursor = 0;
-		break;
-	case Game::MOVE_RIGHT:
-		p.inventoryCursor++;
-		if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
-		break;
+	case Game::MOVE_LEFT: ModeInventoryCursor(p, false); break;
+	case Game::MOVE_RIGHT: ModeInventoryCursor(p, true); break;
 	case Game::MOVE_ENTER: case Game::MOVE_ENTER2:
-		p.ui = UserControl::ui_hand;
-		p.inventory.Copy(p.inventoryPrediction);
-		p.upgradeChoices = 0;
-		p.upgradesMade = 0;
+		p.SetUIState(g,p,UserControl::ui_hand);
 		break;
 	}
 }
@@ -150,23 +154,23 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		}
 		if (p.currentRow < 0) {
 			p.currentRow = 0;
-			p.ui = UserControl::ui_cards;
+			p.SetUIState(g,p,UserControl::ui_cards); //p.ui = UserControl::ui_cards;
 		}
 		break;
-	case Game::MOVE_DOWN:
+	case Game::MOVE_DOWN: {
 		p.currentRow++;
 		if (p.currentRow >= p.handOffset + count - 1) {
 			p.handOffset += p.currentRow - (p.handOffset + count) + 1;
 		}
-		if(p.handOffset+count > p.handPrediction.Count () + p.playedPrediction.Count ()) {
-			p.handOffset = p.handPrediction.Count () + p.playedPrediction.Count () - count;
+		int total = p.handPrediction.Count () + p.playedPrediction.Count ();
+		if (p.handOffset > total - count) {
+			p.handOffset = total - count;
 		}
-		if (p.currentRow >= p.handPrediction.Count () + p.playedPrediction.Count ()) {
-			p.currentRow = p.handPrediction.Count () + p.playedPrediction.Count () - 1;
-			//ui = UserControl::ui_inventory;
+		if (p.currentRow >= total) {
+			p.currentRow = total - 1;
 		}
 		if(p.handOffset < 0) { p.handOffset = 0; }
-		break;
+	}	break;
 	case Game::MOVE_RIGHT: {
 		printf("prediction algorithms disabled\n"); break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
@@ -175,12 +179,14 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 				p.selected.Add (p.currentRow);
 				p.selectedMark.Set (p.currentRow, 1);
 				RefreshPrediction(g, p);
-				if(p.upgradeChoices != 0) { p.ui = UserControl::ui_upgrade; } // TODO add code to make the inventory numbers show up, and the upgrade message too.
+				if(p.upgradeChoices != 0) {
+					p.SetUIState(g,p,UserControl::ui_upgrade); //p.ui = UserControl::ui_upgrade;
+				} // TODO add code to make the inventory numbers show up, and the upgrade message too.
 			}
 		}
 	} break;
 	case Game::MOVE_LEFT: {
-		printf("prediction algorithms disabled\n"); break;
+		printf("prediction and order adjustment algorithms disabled\n"); break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
 		if (isSelected != NULL) {
 			int sindex = p.selected.IndexOf (p.currentRow);
@@ -229,28 +235,19 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		} else if(g.GetCurrentPlayer() == &p) {
 			if (p.currentRow >= 0 && p.currentRow < p.hand.Count ()) {
 				const PlayAction* toPlay = p.hand[p.currentRow];
-				bool canDoIt = CanPlay (g, toPlay, p.inventory);
+				bool canDoIt = toPlay != NULL && CanAfford (g, toPlay->input, p.inventory);
 				if (canDoIt) {
-					SubtractResources (g, toPlay, p.inventory);
-					AddResources (g, p.upgradeChoices, toPlay, p.inventory, p.hand, p.played);
-					if(p.upgradeChoices != 0) { p.ui = UserControl::ui_upgrade; }
-					p.hand.RemoveAt (p.currentRow);
-					if (toPlay->output == "cards") {
-						p.hand.Add (toPlay);
-					} else {
-						p.played.Add (toPlay);
-					}
-					p.inventoryPrediction.Copy(p.inventory);
-					p.handPrediction.Copy(p.hand);
-					p.playedPrediction.Copy(p.played);
+					PlayAction::DoIt(g, p, toPlay);
+					g.NextTurn();
 				}
 			}
 		}
 	}
 }
 
+
 int clampint(int n, int mn, int mx) { return ((n<mn)?mn:((n>mx)?mx:n)); }
-void Player::UpdateInventory(Player& p, int userInput) {
+void Player::UpdateInventory(Game& g, Player& p, int userInput) {
 	switch(userInput) {
 		case Game::MOVE_UP:
 			p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]+1,0,p.inventory[p.inventoryCursor]);
@@ -258,53 +255,47 @@ void Player::UpdateInventory(Player& p, int userInput) {
 		case Game::MOVE_DOWN:
 			p.inventoryPrediction[p.inventoryCursor] = clampint(p.inventoryPrediction[p.inventoryCursor]-1,0,p.inventory[p.inventoryCursor]);
 			break;
-		case Game::MOVE_LEFT:
-			p.inventoryCursor--;
-			if(p.inventoryCursor<0) p.inventoryCursor = 0;
-			break;
-		case Game::MOVE_RIGHT:
-			p.inventoryCursor++;
-			if(p.inventoryCursor>=p.inventory.Length()) p.inventoryCursor = p.inventory.Length()-1;
-			break;
+		case Game::MOVE_LEFT: ModeInventoryCursor(p, false); break;
+		case Game::MOVE_RIGHT:ModeInventoryCursor(p, true);  break;
 		case Game::MOVE_ENTER: case Game::MOVE_ENTER2:
-			p.ui = UserControl::ui_hand;
+			p.SetUIState(g,p,UserControl::ui_hand); //p.ui = UserControl::ui_hand;
 			p.inventory.Copy(p.inventoryPrediction);
 			break;
 	}
 }
 
-void Player::UpdateInput(Player& p, Game& g, int move) {
-	switch(p.ui) {
-	case UserControl::ui_hand:
-		p.uimode = "  card management  ";
-		Player::UpdateHand (g, p, move, g.handDisplayCount);
-		// on hand exit, clear p.selected, reset predictions to current state
-		break;
-	case UserControl::ui_inventory:
-		p.uimode = "resource management";
-		// on enter, prediction should be a copy of inventory. modify prediction
-		Player::UpdateInventory(p, move);
-		break;
-	case UserControl::ui_cards:
-		p.uimode = "selecting next card";
-		printf("select cards              ");
-		Game::UpdateMarket(p, move, g);
-		break;
-	case UserControl::ui_acquire:
-		p.uimode = "acquiring next card";
-		printf("acquire card              ");
-		Game::UpdateAcquireMarket(p, g, move);
-		break;
-	case UserControl::ui_upgrade:
-		p.uimode = "upgrading resources";
-		Player::UpdateUpgrade(p, move);
-		break;
-	case UserControl::ui_objectives:
-		p.uimode = "selecting objective";
-		Game::UpdateObjectiveBuy(g, p, move);
-		break;
+void Player::SetUIState(Game& g, Player& p, UserControl ui) {
+	bool newState = p.ui != ui;
+	if(!newState) {
+		//printf("state duplication...\n");
+		//platform_getch();
+		return;
 	}
-	p.lastState = p.ui;
+	PlayerState* next = NULL;
+	switch(ui) {
+	case UserControl::ui_hand:      next = NEWMEM(HandState);               break;
+	case UserControl::ui_inventory: next = NEWMEM(InventoryEditState);      break;
+	case UserControl::ui_cards:     next = NEWMEM(MarketCardSelectState);   break;
+	case UserControl::ui_acquire:   next = NEWMEM(MarketCardPaymentState);  break;
+	case UserControl::ui_upgrade:   next = NEWMEM(InventoryUpgradeState);   break;
+	case UserControl::ui_objectives:next = NEWMEM(ObjectiveSelectState);    break;
+	}
+	if(next != NULL) {
+		if(p.uistate != NULL) {
+			p.uistate->Release();
+			DELMEM(p.uistate);
+		}
+		p.uistate = next;
+		next->Init(GamePlayer(&g, &p));
+	}
+	p.ui = ui;
+}
+
+void Player::UpdateInput(Game& g, Player& p, int move) {
+	if(p.uistate == NULL) {
+		Player::SetUIState(g,p,UserControl::ui_hand);
+	}
+	p.uistate->ProcessInput(move);
 }
 
 void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
@@ -351,11 +342,7 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 				CLI::putchar(' ');
 			}
 			CLI::resetColor();
-			if (CanPlay (g, card, p.inventory)) {
-				CLI::printf (" .");
-			} else {
-				CLI::printf ("  ");
-			}
+			CLI::printf (CanAfford (g, card->input, p.inventory)?" .":"  ");
 		}
 	}
 	if(extraSpaces > 0) {
@@ -368,7 +355,7 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 	CLI::resetColor();
 }
 
-void Player::PrintInventory(const Player& p, Game& g,int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected) {
+void Player::PrintInventory(Game& g, const Player& p, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected) {
 	CLI::move (pos.y, pos.x);
 	int fcolor = CLI::COLOR::LIGHT_GRAY;
 	CLI::setColor (fcolor, background);
@@ -393,21 +380,21 @@ void Player::PrintInventory(const Player& p, Game& g,int background, int numberW
 	}
 }
 
-void Player::PrintResourcesInventory(Coord cursor, Player& p, Game& g){
+void Player::PrintResourcesInventory(Game& g, Coord cursor, Player& p){
 	const int numberWidth = 2;
 	CLI::resetColor();
 	if(p.validPrediction == PredictionState::valid || p.validPrediction == PredictionState::invalid) {
-		PrintInventory(p, g, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, 
+		PrintInventory(g, p, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, 
 			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1); cursor.y+=1;
 		// draw fake resources... or warning message
-		PrintInventory(p, g, p.validPrediction?CLI::COLOR::BLACK:CLI::COLOR::RED, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, 
+		PrintInventory(g, p, p.validPrediction?CLI::COLOR::BLACK:CLI::COLOR::RED, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, 
 			(p.ui==UserControl::ui_inventory)?p.inventoryCursor:-1);
 	} else {
 		if(p.ui==UserControl::ui_inventory || p.ui==UserControl::ui_upgrade) {
 			// if modifying the inventory, show the prediction, which is the modifying list
-			PrintInventory(p, g, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, p.inventoryCursor);
+			PrintInventory(g, p, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventoryPrediction, g.collectableResources, cursor, p.inventoryCursor);
 		} else {
-			PrintInventory(p, g, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, -1);
+			PrintInventory(g, p, CLI::COLOR::DARK_GRAY, numberWidth, true, p.inventory, g.collectableResources, cursor, -1);
 		}
 		cursor.y+=1;
 		CLI::move(cursor);
@@ -422,14 +409,25 @@ void Player::PrintResourcesInventory(Coord cursor, Player& p, Game& g){
 	}
 }
 
-void Player::PrintUserState(Coord cursor, const Player & p, Game& g) {
+void printspaces(int x) {
+	for(int i=0;i<x;++i){CLI::putchar(' ');}
+}
+
+void Player::PrintUserState(Game& g, Coord cursor, const Player & p) {
+	int MAXWIDTH = 19;
 	CLI::move (cursor);
 	if(g.GetCurrentPlayer()==&p) { p.SetConsoleColor(g); }
 	else{CLI::resetColor();}
-	CLI::printf ("%s", p.name.c_str());
+	CLI::printf ("%.*s", MAXWIDTH, p.name.c_str());
+	printspaces(MAXWIDTH-p.name.length());
 	CLI::resetColor();
-	cursor.y ++; CLI::move (cursor); CLI::printf(p.uimode.c_str()); cursor.y --;
-	cursor.x += 15;
+	cursor.y ++; CLI::move (cursor); 
+	std::string output = "...";
+	if(p.uistate != NULL) { output = p.uistate->GetName(); }
+	CLI::printf(output.c_str()); //CLI::printf(p.uimode.c_str()); 
+	if(output.length() < MAXWIDTH) { printspaces(MAXWIDTH-output.length()); }
+	cursor.y --;
+	cursor.x += MAXWIDTH;
 	for(int i = 0; i < p.achieved.Count(); ++i) {
 		CLI::move (cursor);
 		int pts = p.achieved[i].bonusPoints;

@@ -29,11 +29,10 @@
 //x [upgrade action] - state_upgrade - select X resources to upgrade
 //x [rest action] - put played cards back into hand
 
-// TODO show correct state message as soon as state changes, instead of waiting for input in new state
-// TODO cancel card purchase if enter is pressed twice without moving the inventory cursor, or cancel is pressed
-// TODO pass the turn
 // TODO force resource reconcile (down to max) after turn is passed. require reconcile finish before new turn starts
+// TODO implement winning
 // TODO re-implement predictions
+// TODO fix upgrade UI during predictions
 // TODO list actions that have happened in a history list:
 //   - card played (including pre and post resources)
 //   - cards refreshed (including pre played list)
@@ -42,6 +41,7 @@
 //   - resources reconciled (including pre and post resources)
 //   - upgrade made (including which upgrade card was used, pre and post resources)
 // TODO undo the last action on the history list if the current player presses cancel
+// TODO allow player to change their name and colors (fore and back colors must be different)
 
 // architecture:
 // game
@@ -56,10 +56,10 @@
 
 int main (int argc, const char** argv) {
 	Game g(3, CLI::getWidth (), 25);
-	while (g.running) {
+	while (g.IsRunning()) {
 		g.Draw();
 		g.RefreshInput();
-		g.ProcessInput(); // TODO replace with Update() once statemachine code is implemented
+		g.Update();
 	}
 	return 0;
 }

@@ -5,8 +5,8 @@ void Game::Draw() {
 		int column = (i*20);
 		Player& p = *GetPlayer(i);
 		Player::PrintHand (*this, Coord(column+1,9), handDisplayCount, p);
-		Player::PrintResourcesInventory(Coord(column,20), p, *this);
-		Player::PrintUserState(Coord(column,23), p, *this);
+		Player::PrintResourcesInventory(*this, Coord(column,20), p);
+		Player::PrintUserState(*this, Coord(column,23), p);
 	}
 	Game::PrintAchievements(*this, Coord(0,2));
 	Game::PrintMarket(*this, Coord(0,6));
@@ -28,7 +28,7 @@ void Game::UpdateObjectiveBuy(Game&g, Player& p, int userInput) {
 		p.marketCursor++; if(p.marketCursor >= g.achievements.Length()) { p.marketCursor = g.achievements.Length()-1; }
 		break;
 	case Game::MOVE_DOWN:
-		p.ui = UserControl::ui_cards;
+		p.SetUIState(g,p,UserControl::ui_cards); //p.ui = UserControl::ui_cards;
 		break;
 	case Game::MOVE_ENTER: case Game::MOVE_ENTER2: 
 		if(g.GetCurrentPlayer() == &p) {
@@ -61,13 +61,14 @@ void Game::UpdateObjectiveBuy(Game&g, Player& p, int userInput) {
 					if(giveGold){ g.goldLeft--; userObj.bonusPoints = 3; }
 					if(giveSilver){ g.silverLeft--; userObj.bonusPoints = 1; }
 				}
-				// add achievement to the player's achievements
-				p.achieved.Add(userObj);
 				// remove the achievement from the achievements list
 				g.achievements.Shift(p.marketCursor);
 				// pull an achievement from the deck
 				g.achievements[g.achievements.Length()-1] = (g.achievement_deck.Count() > 0)
 					?g.achievement_deck.PopLast() : NULL;
+				// add achievement to the player's achievements
+				p.achieved.Add(userObj);
+				g.NextTurn();
 			}
 		}
 	}
@@ -88,12 +89,13 @@ void GainSelectedMarketCard(Game& g, Player& p) {
 	g.acquireBonus.Shift(p.marketCardToBuy);
 	g.acquireBonus[g.acquireBonus.Length()-1] = NULL;
 	p.marketCardToBuy = -1;
-	p.ui = UserControl::ui_cards;
+	p.SetUIState(g,p,UserControl::ui_cards); //p.ui = UserControl::ui_cards;
+	g.NextTurn();
 }
 
-void Game::UpdateAcquireMarket(Player& p, Game& g, int userInput) {
-	bool probablyPaidUp = p.marketCardToBuy == 0;
-	if(!probablyPaidUp) {
+void Game::UpdateAcquireMarket(Game& g, Player& p, int userInput) {
+	bool playerIsReadyToBuy = p.marketCardToBuy == 0;
+	if(!playerIsReadyToBuy) {
 		switch(userInput) {
 			case Game::MOVE_UP:
 				if(g.resourcePutInto[p.marketCursor] == -1 && p.inventory[p.inventoryCursor] > 0) {
@@ -148,16 +150,15 @@ void Game::UpdateAcquireMarket(Player& p, Game& g, int userInput) {
 				}
 				break;
 			case Game::MOVE_ENTER: case Game::MOVE_ENTER2:
-				probablyPaidUp = true;
+				playerIsReadyToBuy = true;
 				break;
 		}
 	}
 	if(p.marketCursor >= 0 && p.marketCursor < g.resourcePutInto.Length() && g.resourcePutInto[p.marketCursor] != -1) {
 		p.inventoryCursor = g.resourcePutInto[p.marketCursor];
 	}
-
 	bool paidUp = false;
-	if(probablyPaidUp) {
+	if(playerIsReadyToBuy) {
 		// check if all of the market positions before this one are paid
 		paidUp = true;
 		for(int i = 0; i < g.resourcePutInto.Length() && i < p.marketCardToBuy; ++i) {
@@ -166,10 +167,24 @@ void Game::UpdateAcquireMarket(Player& p, Game& g, int userInput) {
 	}
 	if(paidUp) {
 		GainSelectedMarketCard(g, p);
+	} else if(!paidUp && playerIsReadyToBuy) {
+		printf("CANCELING ");
+		// cancel.
+		p.SetUIState(g,p,UserControl::ui_cards);
+		p.marketCardToBuy = -1;
+		// give back the resources used to buy the card
+		for(int i = 0; i < g.resourcePutInto.Length(); ++i) {
+			int whichResource = g.resourcePutInto[i];
+			if(whichResource >= 0) {
+				(*g.acquireBonus[i])[whichResource]--; // remove it from the board
+				p.inventory[whichResource]++; // add it back to the inventory
+				g.resourcePutInto[i] = -1; // mark it as unpaid
+			}
+		}
 	}
 }
 
-void Game::UpdateMarket(Player& p, int userInput, Game& g) {
+void Game::UpdateMarket(Game& g, Player& p, int userInput) {
 	switch(userInput) {
 	case Game::MOVE_LEFT:
 		p.marketCursor--; if(p.marketCursor < 0) { p.marketCursor = 0; }
@@ -178,29 +193,23 @@ void Game::UpdateMarket(Player& p, int userInput, Game& g) {
 		p.marketCursor++; if(p.marketCursor >= g.market.Length()) { p.marketCursor = g.market.Length()-1; }
 		break;
 	case Game::MOVE_UP:
-		p.ui = UserControl::ui_objectives;
+		p.SetUIState(g,p,UserControl::ui_objectives); //p.ui = UserControl::ui_objectives;
 		break;
 	case Game::MOVE_DOWN:
-		p.ui = UserControl::ui_hand;
+		p.SetUIState(g,p,UserControl::ui_hand); //p.ui = UserControl::ui_hand;
 		break;
 	case Game::MOVE_ENTER: case Game::MOVE_ENTER2: {
 		if(g.GetCurrentPlayer() == &p){
+			p.marketCardToBuy = p.marketCursor;
 			if(p.marketCardToBuy == 0) {
 				GainSelectedMarketCard(g, p);
+				p.marketCardToBuy = -1;
 			} else {
 				int total = p.inventory.Sum();
 				if(total < p.marketCursor || g.market[p.marketCursor] == NULL) {
 					printf("too expensive, cannot afford.\n");
 				} else {
-					g.resourcePutInto.SetAll(-1);
-					p.marketCardToBuy = p.marketCursor;
-					p.marketCursor = 0;
-					for(int i = 0; i < p.marketCardToBuy; ++i) {
-						if(g.acquireBonus[i] == NULL) {
-							g.acquireBonus[i] = NEWMEM(List<int>(p.inventory.Length(), 0));
-						}
-					}
-					p.ui = ui_acquire;
+					p.SetUIState(g,p,UserControl::ui_acquire); //p.ui = ui_acquire;
 				}
 			}
 		}
@@ -274,7 +283,7 @@ void Game::PrintMarket(Game& g, Coord cursor) {
 			if(currentPlayer && i < currentPlayer->marketCardToBuy && g.resourcePutInto[i] == -1) {
 				background = CLI::COLOR::RED;
 			}
-			Player::PrintInventory(*p, g, background, 1, (p != NULL && currentPlayer->ui == UserControl::ui_acquire), *(g.acquireBonus[i]), 
+			Player::PrintInventory(g, *p, background, 1, (p != NULL && currentPlayer->ui == UserControl::ui_acquire), *(g.acquireBonus[i]), 
 				g.collectableResources, cursor, 
 				(p && i < currentPlayer->marketCardToBuy)?currentPlayer->inventoryCursor:-1);
 			CLI::setColor(CLI::COLOR::WHITE, -1);
