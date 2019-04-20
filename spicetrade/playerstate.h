@@ -98,6 +98,19 @@ class ObjectiveBuy : public PlayerState {
 	}
 };
 
+class CheckScore : public PlayerState {
+	std::string message;
+public:
+	virtual std::string GetName () { return message; };
+	virtual void Init (const GamePlayer& a_data) {
+		PlayerState::Init(a_data);
+		message = std::string("current score ")+std::to_string(Player::CalculateScore(*(data.p)));
+	}
+	virtual void ProcessInput (int key) {
+		Player::SetUIState<HandManage>(*data.g, *data.p);
+	}
+};
+
 class Finished : public PlayerState {
 	int score;
 	std::string message;

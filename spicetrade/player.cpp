@@ -171,6 +171,7 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		}
 		if (p.currentRow >= total) {
 			p.currentRow = total - 1;
+			p.SetUIState<CheckScore>(g,p);
 		}
 		if(p.handOffset < 0) { p.handOffset = 0; }
 	}	break;

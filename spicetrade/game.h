@@ -42,7 +42,7 @@ public:
 	int handDisplayCount = 10;
 	int goldLeft = 5, silverLeft = 5;
 	int maxInventory = 10;
-	static const int COUNT_OBJECTIVE_TO_WIN = 1;
+	static const int COUNT_OBJECTIVE_TO_WIN = 6;
 
 	static const int achievementCards = 5; // TODO rename COUNT_OBJECTIVE_FIELD
 	static const int marketCards = 6; // TODO rename COUNT_MARKET_FIELD
