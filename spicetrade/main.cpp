@@ -29,6 +29,7 @@
 //x [upgrade action] - state_upgrade - select X resources to upgrade
 //x [rest action] - put played cards back into hand
 
+// TODO implement Normal : GameState, NearlyOver : GameState, Over : GameState
 // TODO implement winning
 // TODO re-implement predictions
 // TODO fix upgrade UI during predictions

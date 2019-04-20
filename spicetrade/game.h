@@ -40,6 +40,7 @@ public:
 	int handDisplayCount = 10;
 	int goldLeft = 5, silverLeft = 5;
 	int maxInventory = 10;
+	int objectiveWinCount = 6;
 
 	static const int achievementCards = 5;
 	static const int marketCards = 6;

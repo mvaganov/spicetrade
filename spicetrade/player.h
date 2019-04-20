@@ -31,7 +31,6 @@ class Player {
 	VList<int> selected; // TODO rename selectedCards
 	Dictionary<int, int> selectedMark;
 	PredictionState validPrediction;
-//	UserControl ui;
 
 	PlayerState* uistate;
 
@@ -44,7 +43,7 @@ class Player {
 	int upgradesMade = 0;
 	int fcolor, bcolor;
 
-	Player():validPrediction(PredictionState::none),//ui(UserControl::ui_none),
+	Player():validPrediction(PredictionState::none),
 		inventoryCursor(0),handOffset(0),currentRow(0),marketCursor(0),
 		marketCardToBuy(0),upgradeChoices(0),upgradesMade(0),fcolor(-1),bcolor(-1),uistate(NULL){}
 
@@ -70,7 +69,7 @@ class Player {
 		listop(selected);
 		#undef listop
 		#define cpy(v)	v=toCopy.v;
-		cpy(name);cpy(validPrediction);//cpy(ui);
+		cpy(name);cpy(validPrediction);
 		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
 		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
 		cpy(fcolor);cpy(bcolor);
@@ -85,7 +84,7 @@ class Player {
 		listop(selected);
 		#undef listop
 		#define cpy(v)	v=toMove.v;
-		cpy(name);	cpy(validPrediction);	//cpy(ui);
+		cpy(name);	cpy(validPrediction);
 		cpy(inventoryCursor);cpy(handOffset);cpy(currentRow);
 		cpy(marketCardToBuy);cpy(upgradeChoices);cpy(upgradesMade);
 		#undef cpy
@@ -116,6 +115,19 @@ class Player {
 	void PredictionRestart() {
 		handPrediction.Copy(hand);
 		playedPrediction.Copy(played);
+	}
+
+	static int CalculatePoints(Player& p) {
+		int total = 0;
+		// count objectives
+		for(int i = 0; i < p.achieved.Count(); ++i) {
+			total += p.achieved[i].points + p.achieved[i].bonusPoints;
+		}
+		// count non-basic resources
+		for(int i = 1; i < p.inventory.Length(); ++i) {
+			total += p.inventory[i];
+		}
+		return total;
 	}
 
 	static void FinishTurn(Game& g, Player& p);

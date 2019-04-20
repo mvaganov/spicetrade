@@ -97,3 +97,10 @@ class ObjectiveBuy : public PlayerState {
 		Game::UpdateObjectiveBuy(*data.g, *data.p, key);
 	}
 };
+
+class Won : public PlayerState {
+	virtual const char* GetName () { return "WINNER!"; };
+	virtual void Init (const GamePlayer& a_data) { PlayerState::Init(a_data); }
+	virtual void Release () {}
+	virtual void ProcessInput (int key) {}
+};

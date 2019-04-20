@@ -44,6 +44,18 @@ void Game::InitPlayers(int playerCount) {
 	// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
 }
 
+void CalculateTheWin(Game& g) {
+	List<int> scores(g.players.Length());
+	int winner = 0;
+	for(int i = 0; i < g.players.Length(); ++i) {
+		int s = Player::CalculatePoints(g.players[i]);
+		scores[i] = s;
+		if(scores[i] > scores[winner]) { winner = i; }
+	}
+	Player& p = g.players[winner];
+	Player::SetUIState<Won>(g, p);
+}
+
 void Game::UpdateObjectiveBuy(Game&g, Player& p, int userInput) {
 	switch(userInput) {
 	case Game::MOVE_LEFT:
@@ -94,6 +106,11 @@ void Game::UpdateObjectiveBuy(Game&g, Player& p, int userInput) {
 				// add achievement to the player's achievements
 				p.achieved.Add(userObj);
 				Player::FinishTurn(g,p);
+
+				// if this was the 6th card...
+				// check if the game will reclaculate scores at the end of this turn
+					// if somebody already triggered the win, calculate the win right now.
+				// mark that the game needs to calculate scores at the end of this turn
 			}
 		}
 	}
@@ -255,7 +272,7 @@ void Game::PrintObjectives(Game& g, Coord cursor) {
 				break;
 			}
 		}
-		if(p){p->SetConsoleColor(g);}
+		if(p) { p->SetConsoleColor(g); }
 		putchar((p)?'>':' ');
 		const Objective* o = g.achievements[i];
 		int bg = (o != NULL && Player::CanAfford(g, o->input, currentPlayer->inventory)
@@ -293,8 +310,7 @@ void Game::PrintMarket(Game& g, Coord cursor) {
 		for(int pi = 0; pi < g.playerUIOrder.Length(); ++pi) {
 			Player* tp = g.playerUIOrder[pi];
 			if(tp->marketCursor == i
-			&&(Player::IsState<CardBuy>(*tp)
-			|| Player::IsState<CardBuyDeep>(*tp))) {
+			&&(Player::IsState<CardBuy>(*tp) || Player::IsState<CardBuyDeep>(*tp))) {
 				p = tp;
 				break;
 			}
