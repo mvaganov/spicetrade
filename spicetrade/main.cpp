@@ -29,6 +29,7 @@
 //x [rest action] - put played cards back into hand
 
 // TODO re-implement predictions
+// TODO re-implement double-buffering to prevent flickering
 // TODO fix upgrade UI during predictions
 // TODO list actions that have happened in a history list:
 //   - card played (including pre and post resources)
