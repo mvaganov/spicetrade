@@ -71,9 +71,16 @@ void Game::Init() {
 	Game::SetState<GameNormal>(*this);
 }
 
+void Game::Draw() {
+	CLI::move(0,0);
+	CLI::printf("%s", m_state->GetName().c_str());
+	m_state->Draw();
+	CLI::refresh();
+}
+
 void Game::InitScreen(){
 	CLI::init ();
-	CLI::setDoubleBuffered(true);
+	//CLI::setDoubleBuffered(true);
 	CLI::fillScreen (' ');
 	CLI::refresh();
 }

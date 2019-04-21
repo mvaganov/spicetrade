@@ -310,7 +310,7 @@ MEM_DEBUG_INFRASTRUCTURE
 		MemBlock ** prevNextPtr;
 #endif
 MEM_DEBUG_INFRASTRUCTURE
-	do{
+		do{
 			// if there is no page
 			if(!page){
 MEM_DEBUG_INFRASTRUCTURE

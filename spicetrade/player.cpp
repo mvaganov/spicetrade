@@ -176,6 +176,7 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		if(p.handOffset < 0) { p.handOffset = 0; }
 	}	break;
 	case Game::MOVE_RIGHT: {
+		printf("prediction algorithms disabled\n"); break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
 		if (isSelected == NULL) {
 			if(p.currentRow < p.handPrediction.Count()){
@@ -189,6 +190,7 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		}
 	} break;
 	case Game::MOVE_LEFT: {
+		printf("prediction algorithms disabled\n"); break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
 		if (isSelected != NULL) {
 			int sindex = p.selected.IndexOf (p.currentRow);

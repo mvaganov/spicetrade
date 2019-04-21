@@ -64,7 +64,8 @@ namespace CLI
 		}
 
 		void SetAt(CLI::Coord c, char letter, unsigned int fcolor, unsigned int bcolor) {
-			GetAt(c)->Set(letter, fcolor, bcolor);
+			Pel* p = GetAt(c);
+			if(p){p->Set(letter, fcolor, bcolor);}
 		}
 		/**
 		 * @param a_numberOfBuffers 0 for no buffering (use platform buffer),
@@ -85,10 +86,11 @@ namespace CLI
 
 		/** @param c DO NOT put in \0, \a, \t, \b, \n, \r, or -1 */
 		void putcharDirect(char c, unsigned char fcolor, unsigned char bcolor) {
-			int i = CorrectIndex(m_cursor);
+			//int i = CorrectIndex(m_cursor);
 			if(m_cursor.y >= 0 && m_cursor.y < m_size.y) {
 				if(m_cursor.x >= 0 && m_cursor.x < m_size.x) {
-					m_mainBuffer[i].Set(c, fcolor, bcolor);
+					//m_mainBuffer[i].Set(c, fcolor, bcolor);
+					SetAt(m_cursor, c, fcolor, bcolor);
 				}
 				++m_cursor.x;
 				if(m_wrap && m_cursor.x >= m_size.x) {

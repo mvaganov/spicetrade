@@ -89,7 +89,7 @@ public:
 		if(currentPlayer >= players.Length()) {
 			currentPlayer = 0;
 		}
-		for(int i = 0; i < players.Length(); ++i){
+		for(int i = 0; i < players.Length(); ++i) {
 			playerUIOrder[i] = &players[(currentPlayer+i) % players.Length()];
 		}
 	}
@@ -158,12 +158,7 @@ public:
 	}
 	~Game(){Release();}
 
-	void Draw() {
-		CLI::move(0,0);
-		CLI::printf("%s", m_state->GetName().c_str());
-		m_state->Draw();
-		CLI::refresh();
-	}
+	void Draw();
 
 	void NormalDraw();
 

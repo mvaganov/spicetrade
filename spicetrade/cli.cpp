@@ -123,7 +123,7 @@ void CLI::BufferManager::setBufferCount(int a_numberOfBuffers)
 		m_softwareCLIdata->ReinitializeDoubleBuffer(a_numberOfBuffers,
 				CLI::Coord(CLI::getWidth(),CLI::getHeight()));
 	} else {
-		if(m_softwareCLIdata){
+		if(m_softwareCLIdata) {
 			DELMEM(m_softwareCLIdata);
 			m_softwareCLIdata = 0;
 		}
@@ -1009,6 +1009,7 @@ void CLI::CLIBuffer::Draw() {
 }
 
 CLI::Coord CLI::GetCursorLocation() {
+	if(!getCLI()->getOutputBuffer()) return Coord(0,0);
 	return getCLI()->getOutputBuffer()->getCursorPosition();
 }
 
