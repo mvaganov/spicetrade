@@ -3,8 +3,6 @@
 #define __need_ptrdiff_t // TODO remove this line? not needed in windows...
 #include <stdlib.h>	// for size_t and ptrdiff_t
 
-// TODO discover why this does not work on the linux box (?).
-
 /**
  * Simply comment the line below to use the standard C++ new allocator.
  *
@@ -16,6 +14,7 @@
  */
 
 // memory allocator needs some work. Windows works, but POSIX seems less forgiving with this implementaiton.
+// TODO discover why this does not work on the linux box (?).
 #ifdef _WIN32
 #define USE_CUSTOM_MEMORY_MANAGEMENT
 #endif

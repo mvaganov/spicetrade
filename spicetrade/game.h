@@ -24,7 +24,6 @@ class Game
 	int throttle;
 
 public:
-	CLI::Coord importantScreenArea;
 	/** stores the next user input to process */
 	int userInput; // TODO make private
 	List<Player> players;
@@ -169,7 +168,7 @@ public:
 	void ProcessInput() {
 		switch (userInput) {
 		case 27:
-			CLI::printf("Quitting!");
+			platform_move(0,0);
 			m_running = false;
 			break;
 		default:
@@ -194,8 +193,8 @@ public:
 	// 	return !state->IsDone();
 	// }
 
-	void Update()
-	{
+	void Update() {
+		if(!m_running) return;
 		ProcessInput();
 		m_state->Update();
 		// GameState * state = m_stateQueue->Peek();

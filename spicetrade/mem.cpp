@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MEM_LINKED_LIST
+//#define MEM_LINKED_LIST
 
 #define VERIFY_INTEGRITY
 
@@ -303,7 +303,7 @@ MEM_DEBUG_INFRASTRUCTURE
 		// which memory page is being searched
 		MemPage * page = mem;
 		// where this memory page ends
-		//int endOfThisPage;
+		int endOfThisPage;
 		// which memory block is being searched
 		MemBlock * block = 0;
 #ifdef MEM_LINKED_LIST
@@ -343,25 +343,25 @@ MEM_DEBUG_INFRASTRUCTURE
 			if(block->isFree()){
 				// extended this free block as far as possible (till the block right after isn't free)
 				MemBlock * nextNode = block->nextContiguousBlock();
-				while((PTR_VAL)nextNode < endOfThisPage && nextNode->isFree()){
+				while((size_t)nextNode < endOfThisPage && nextNode->isFree()){
 #ifdef MEM_LEAK_DEBUG
-					if(nextNode->signature != MEM_LEAK_DEBUG){
+					if(nextNode->signature != MEM_LEAK_DEBUG) {
 						// memory corruption... can't traverse as expected!
 						int i = 0; i = 1/i;
 					}
 #endif
 #ifdef MEM_CLEARED_HEADER
-					PTR_VAL* imem = (PTR_VAL*)nextNode;
+					size_t* imem = (size_t*)nextNode;
 #endif
 					nextNode = nextNode->nextContiguousBlock();
 #ifdef MEM_CLEARED_HEADER
-					PTR_VAL numInts = sizeof(MemBlock)/sizeof(ptrdiff_t);
-					for(int i = 0; i < numInts; ++i){
+					size_t numInts = sizeof(MemBlock)/sizeof(ptrdiff_t);
+					for(int i = 0; i < numInts; ++i) {
 						imem[i]=MEM_CLEARED_HEADER;
 					}
 #endif
 				}
-				block->setSize(((PTR_VAL)nextNode-(PTR_VAL)block)-sizeof(MemBlock));
+				block->setSize(((size_t)nextNode-(size_t)block)-sizeof(MemBlock));
 #endif
 MEM_DEBUG_INFRASTRUCTURE
 				// if it has enough space to be spliced into 2 blocks
@@ -429,7 +429,7 @@ MEM_DEBUG_INFRASTRUCTURE
 			// check the next block!
 			block = block->nextContiguousBlock();
 			// if the "next block" in this page is out of bounds
-			if((PTR_VAL)block >= endOfThisPage){
+			if((size_t)block >= endOfThisPage) {
 				// go to the next page
 				page = page->next;
 				// start checking from the beginning

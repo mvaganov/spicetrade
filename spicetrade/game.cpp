@@ -18,7 +18,7 @@ void Game::RefreshInput() {
 		CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1); // reset color
 		SetInput(CLI::getch ());
 	} else {
-		platform_move(importantScreenArea.y,importantScreenArea.x);
+		platform_move(0, 0);
 		platform_sleep(throttle);
 	}
 }
@@ -342,7 +342,6 @@ void Game::PrintObjectives(Game& g, CLI::Coord cursor) {
 		}
 		if(p) { p->SetConsoleColor(g); }
 		CLI::putchar((p)?'>':' ');
-		if(g.GetCurrentPlayer() == p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		const Objective* o = g.achievements[i];
 		int bg = (o != NULL && Player::CanAfford(g, o->input, currentPlayer->inventory)
 			?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK);
@@ -386,7 +385,6 @@ void Game::PrintMarket(Game& g, CLI::Coord cursor) {
 		}
 		if(p){p->SetConsoleColor(g);}
 		CLI::putchar((p)?'>':' ');
-		if(g.GetCurrentPlayer() == p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		PlayAction::PrintAction(g, g.market[i], (totalResources >= i)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
 		if(p){p->SetConsoleColor(g);}

@@ -176,7 +176,8 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		if(p.handOffset < 0) { p.handOffset = 0; }
 	}	break;
 	case Game::MOVE_RIGHT: {
-		printf("prediction algorithms disabled\n"); break;
+		//printf("prediction algorithms disabled\n");
+		break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
 		if (isSelected == NULL) {
 			if(p.currentRow < p.handPrediction.Count()){
@@ -190,7 +191,8 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		}
 	} break;
 	case Game::MOVE_LEFT: {
-		printf("prediction algorithms disabled\n"); break;
+		//printf("prediction algorithms disabled\n");
+		break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
 		if (isSelected != NULL) {
 			int sindex = p.selected.IndexOf (p.currentRow);
@@ -314,7 +316,6 @@ void Player::PrintHand (Game& g, CLI::Coord pos, int count, Player& p) {
 		if (Player::IsState<HandManage>(p) && i == p.currentRow) {
 			p.SetConsoleColor(g);
 			CLI::putchar ((!isplayed ? '>' : 'x'));
-			if(g.GetCurrentPlayer() == &p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		} else {
 			CLI::putchar (' ');
 		}
@@ -368,7 +369,6 @@ void Player::PrintInventory(Game& g, const Player& p, int background, int number
 		if(i == selected) {
 			if(Player::IsState<ResWaste>(p)){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
 			CLI::putchar('>');CLI::setColor (fcolor, background);
-			if(g.GetCurrentPlayer() == &p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		} else { CLI::putchar(' '); }
 		CLI::setColor (collectableResources[i]->color);
 		if(showZeros || inventory[i] != 0) {
