@@ -3,7 +3,6 @@
 #include "game.h"
 #include "platform_conio.h"
 #include "platform_random.h"
-#include "vector2.h"
 #include <stdio.h>
 #include <string>
 
@@ -29,7 +28,6 @@
 //x [upgrade action] - state_upgrade - select X resources to upgrade
 //x [rest action] - put played cards back into hand
 
-// TODO CLI double-buffering with dirty-characters (to prevent flickering and cursor blinking)
 // TODO re-implement predictions
 // TODO fix upgrade UI during predictions
 // TODO list actions that have happened in a history list:
@@ -41,6 +39,7 @@
 //   - upgrade made (including which upgrade card was used, pre and post resources)
 // TODO undo the last action on the history list if the current player presses cancel
 // TODO allow player to change their name and colors (fore and back colors must be different)
+// TODO finish refactoring CLI... strip-out redundant platform_ code, merge BufferManager and CLIBuffer (?)
 
 // architecture:
 // game
@@ -54,7 +53,9 @@
 //   _inventoryPredicted
 
 int main (int argc, const char** argv) {
-	Game g(1, CLI::getWidth (), 25);
+	// CLI::init();
+	// CLI::release();
+	Game g(1);
 	while (g.IsRunning()) {
 		g.Draw();
 		g.RefreshInput();

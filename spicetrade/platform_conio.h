@@ -15,6 +15,8 @@ long platform_kbhit ();
 long platform_getchar ();
 /** set the color of the command line cursor. linux gets more colors than windows. ignore negative values (use current color) */
 void platform_setColor (long foreground, long background);
+int platform_defaultFColor();
+int platform_defaultBColor();
 /** converts the given 0-255 RGB value to an approximate in the command-line console */
 int platform_getApproxColor (unsigned char r, unsigned char g, unsigned char b);
 /** pause the thread for the given number of milliseconds */
@@ -128,7 +130,7 @@ inline WORD* __oldAttributes () {
 
 inline void __platform_release () {
 	if (*__stdOutputHandle () != 0) {
-		platform_setColor (*__oldAttributes () & 0xf, *__oldAttributes () & 0xf0);
+		platform_setColor (*__oldAttributes () & 0xf, (*__oldAttributes () & 0xf0) >> 4);
 		*__stdOutputHandle () = 0;
 	}
 }
@@ -185,6 +187,10 @@ inline void platform_setColor (long foreground, long background) {
 	}
 	SetConsoleTextAttribute (*__stdOutputHandle (), (foreground & 0xf) | ((background & 0xf) << 4));
 }
+
+inline int platform_defaultFColor() { return (*__oldAttributes ()) & 0xf; }
+
+inline int platform_defaultBColor() { return (*__oldAttributes () & 0xf0) >> 4; }
 
 // TODO better algorithm needed here.
 inline int platform_getApproxColor (unsigned char r, unsigned char g, unsigned char b) {

@@ -8,7 +8,7 @@
 const char *CLI::version = "0.0.4";
 
 /** current CLI. if !initialized, some platform abstraction might still work */
-static CLI::CommandLineInterface * g_CLI = 0;
+static CLI::BufferManager * g_CLI = 0;
 
 // <prototypes>
 
@@ -18,16 +18,9 @@ struct EscapeTranslate{const int sequence; const int code;};
 extern const EscapeTranslate * g_ESC_SEQ_LIST;
 /** how many valid escape sequences there are */
 extern const int g_ESC_SEQ_LIST_SIZE;
-/** platform-specific cursor move function */
-void platform_move(int row, int col);
 
-void platform_setColor(int foreground, int background);
-
-//bool platform_kbhit();
-
-//int platform_getchar();
-/** helper function for translating input bytes if an escape sequence is found */
-int returnKey(const EscapeTranslate * list, const int listCount, CLI::CommandLineInterface * a_CLI);
+/** helper function for translating platform-specific multi-byte keycodes */
+int returnKey(const EscapeTranslate * list, const int listCount, CLI::BufferManager * a_CLI);
 
 // </prototypes>
 
@@ -81,38 +74,37 @@ const EscapeTranslate listTTY[] = {
 };
 #undef _K
 
-void CLI::CommandLineInterface::move(int row, int col)
-{
-	if(m_softwareCLIdata){
-		m_softwareCLIdata->move(row,col);
+void CLI::BufferManager::move(int row, int col) {
+	if(m_softwareCLIdata) {
+		m_softwareCLIdata->Move(row,col);
 	}else{
 		::platform_move(row, col);
 	}
 }
 
 #define USER_DIDNOT_DEFINE_SIZE	-1
-CLI::CommandLineInterface::~CommandLineInterface()
+CLI::BufferManager::~BufferManager()
 {
-	m_userSize.set(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE);
+	m_userSize.Set(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE);
 	if(m_softwareCLIdata){
 		DELMEM(m_softwareCLIdata);
 		m_softwareCLIdata = 0;
 	}
 }
 
-CLI::CommandLineInterface::CommandLineInterface()
+CLI::BufferManager::BufferManager()
 	:m_userSize(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE),
 	 m_softwareCLIdata(0),m_inputBufferSize(0),
 	 m_fcolor(CLI::COLOR::DEFAULT), m_bcolor(CLI::COLOR::DEFAULT)
 {}
 
 /** @return if using double buffering */
-int CLI::CommandLineInterface::getBufferCount(){
+int CLI::BufferManager::getBufferCount(){
 	if(!m_softwareCLIdata)return 0;
-	return m_softwareCLIdata->getNumberOfBuffers();
+	return m_softwareCLIdata->GetNumberOfBuffers();
 }
 
-void CLI::CommandLineInterface::resetColor()
+void CLI::BufferManager::resetColor()
 {
 	this->setColor(CLI::COLOR::DEFAULT, CLI::COLOR::DEFAULT);
 }
@@ -122,15 +114,15 @@ void CLI::CommandLineInterface::resetColor()
  * 1 to manage a buffer internally (required for non-standard i/o)
  * 2 to keep track of what is printed, reducing redraws where possible
  */
-void CLI::CommandLineInterface::setBufferCount(int a_numberOfBuffers)
+void CLI::BufferManager::setBufferCount(int a_numberOfBuffers)
 {
-	if(a_numberOfBuffers > 0){
-		if(!m_softwareCLIdata){
+	if(a_numberOfBuffers > 0) {
+		if(!m_softwareCLIdata) {
 			m_softwareCLIdata = NEWMEM(CLIBuffer());
 		}
-		m_softwareCLIdata->reinitializeDoubleBuffer(a_numberOfBuffers,
-				CLIBuffer::Coord(CLI::getWidth(),CLI::getHeight()));
-	}else{
+		m_softwareCLIdata->ReinitializeDoubleBuffer(a_numberOfBuffers,
+				CLI::Coord(CLI::getWidth(),CLI::getHeight()));
+	} else {
 		if(m_softwareCLIdata){
 			DELMEM(m_softwareCLIdata);
 			m_softwareCLIdata = 0;
@@ -139,16 +131,21 @@ void CLI::CommandLineInterface::setBufferCount(int a_numberOfBuffers)
 }
 
 /** force the width and height. -1 for either value to use the default */
-void CLI::CommandLineInterface::setSize(int width, int height)
+void CLI::BufferManager::setSize(int width, int height)
 {
-	m_userSize.set(width,height);
-	if(m_softwareCLIdata)
-		m_softwareCLIdata->internalDoubleBufferConsistencyEnforcement(
-				CLIBuffer::Coord(CLI::getWidth(),CLI::getHeight()));
+	m_userSize.Set(width,height);
+	if(m_softwareCLIdata) {
+		// int w = CLI::getWidth();
+		// int h = CLI::getHeight();
+		// printf("%d %d\n",w,h);
+		// platform_getch();
+		m_softwareCLIdata->InternalDoubleBufferConsistencyEnforcement(
+				CLI::Coord(width,height));
+	}
 }
 
 /** @param a_numbytes how much to absorb of the (beginning end) input buffer */
-void CLI::CommandLineInterface::inputBufferConsume(unsigned int a_numBytes)
+void CLI::BufferManager::inputBufferConsume(unsigned int a_numBytes)
 {
 	if(a_numBytes == m_inputBufferSize)
 		m_inputBufferSize = 0;
@@ -164,14 +161,14 @@ void CLI::CommandLineInterface::inputBufferConsume(unsigned int a_numBytes)
 }
 
 /** place a single character at the current cursor, advancing it */
-void CLI::CommandLineInterface::putchar(const int a_letter)
+void CLI::BufferManager::putchar(const int a_letter)
 {
-	if(m_softwareCLIdata && m_softwareCLIdata->getNumberOfBuffers() > 0){
+	if(m_softwareCLIdata && m_softwareCLIdata->GetNumberOfBuffers() > 0){
 		m_softwareCLIdata->putchar(a_letter, CLI::getFcolor(), CLI::getBcolor());
 	}else{
 #ifdef CLI_DEBUG
 		// some how, characters are being put into an unbuffered CLI
-		::printf("CommandLineInterface::putchar printing without buffer\n");
+		::printf("BufferManager::putchar printing without buffer\n");
 		int i=0;i=1/i;
 #endif
 		::putchar(a_letter);
@@ -187,7 +184,7 @@ void CLI::CommandLineInterface::putchar(const int a_letter)
  * @param wrapping whether or not to wrap to the next line if the text goes over the edge
  * @param a_color what color the text should be
  */
-void CLI::CommandLineInterface::drawText(const char * text, int a_x, int a_y, int a_w, int a_h, bool wraping){
+void CLI::BufferManager::drawText(const char * text, int a_x, int a_y, int a_w, int a_h, bool wraping){
 	int index = 0;
 	char c;
 	// store x/y in case no output buffer is keeping track of the cursor
@@ -212,7 +209,7 @@ void CLI::CommandLineInterface::drawText(const char * text, int a_x, int a_y, in
 	}
 }
 
-void CLI::CommandLineInterface::fillRect(int x, int y, int width, int height, char fill){
+void CLI::BufferManager::fillRect(int x, int y, int width, int height, char fill){
 	for(int row = y; row < y+height; ++row){
 		for(int col = x; col < x+width; ++col){
 			move(row, col);
@@ -222,7 +219,7 @@ void CLI::CommandLineInterface::fillRect(int x, int y, int width, int height, ch
 }
 	
 /** fills the entire screen with the given character */
-void CLI::CommandLineInterface::fillScreen(char a_letter)
+void CLI::BufferManager::fillScreen(char a_letter)
 {
 	this->move(0,0);
 	int numSpaces = this->getWidth()*this->getHeight();
@@ -231,13 +228,13 @@ void CLI::CommandLineInterface::fillScreen(char a_letter)
 	}
 }
 
-void CLI::CommandLineInterface::puts( const char *str, const int size ){
+void CLI::BufferManager::puts( const char *str, const int size ){
 	for(int i = 0; i < size && str[i]; ++i)
 		this->putchar(str[i]);
 }
 
 #include <stdarg.h>	// for va_list and va_start
-int CLI::CommandLineInterface::printf( const char *fmt, ... )
+int CLI::BufferManager::printf( const char *fmt, ... )
 {
 	int size = 40, n;
 	char * buffer = NULL;
@@ -261,44 +258,44 @@ int CLI::CommandLineInterface::printf( const char *fmt, ... )
 }
 
 /** @return true if there is a key press waiting to be read */
-bool CLI::CommandLineInterface::kbhit(){
+bool CLI::BufferManager::kbhit(){
 	return (m_inputBufferSize > 0) || platform_kbhit();
 }
 
-int CLI::CommandLineInterface::getchar()
+int CLI::BufferManager::getchar()
 {
 	return returnKey(g_ESC_SEQ_LIST, g_ESC_SEQ_LIST_SIZE, this);
 }
 
 /** determine how big the screen the user asked for is */
-CLI::CLIBuffer::Coord CLI::CommandLineInterface::getUserSize(){
+CLI::Coord CLI::BufferManager::getUserSize(){
 	if(!m_softwareCLIdata)
-		return CLI::CLIBuffer::Coord(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE);
-	return this->m_softwareCLIdata->getSize();
+		return CLI::Coord(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE);
+	return this->m_softwareCLIdata->GetSize();
 }
 
 /** determine how many columns the screen is */
-int CLI::CommandLineInterface::getWidth(){
-	if(this->m_softwareCLIdata && this->m_softwareCLIdata->getSize().x > 0)
-		return this->m_softwareCLIdata->getSize().x;
+int CLI::BufferManager::getWidth(){
+	if(this->m_softwareCLIdata && this->m_softwareCLIdata->GetSize().x > 0)
+		return this->m_softwareCLIdata->GetSize().x;
 	return m_userSize.x;
 }
 
 /** determine how many rows the screen is */
-int CLI::CommandLineInterface::getHeight(){
-	if(this->m_softwareCLIdata && this->m_softwareCLIdata->getSize().y > 0)
-		return this->m_softwareCLIdata->getSize().y;
+int CLI::BufferManager::getHeight(){
+	if(this->m_softwareCLIdata && this->m_softwareCLIdata->GetSize().y > 0)
+		return this->m_softwareCLIdata->GetSize().y;
 	return m_userSize.y;
 }
 
 /** @return foreground color */
-int CLI::CommandLineInterface::getFcolor(){return m_fcolor;}
+int CLI::BufferManager::getFcolor(){return m_fcolor;}
 
 /** @return background color */
-int CLI::CommandLineInterface::getBcolor(){return m_bcolor;}
+int CLI::BufferManager::getBcolor(){return m_bcolor;}
 
 /** use CLI::COLOR values for foreground and background */
-void CLI::CommandLineInterface::setColor(int foreground, int background)
+void CLI::BufferManager::setColor(int foreground, int background)
 {
 	m_fcolor = foreground;
 	m_bcolor = background;
@@ -306,14 +303,14 @@ void CLI::CommandLineInterface::setColor(int foreground, int background)
 		platform_setColor(foreground, background);
 }
 
-void CLI::CommandLineInterface::refresh_stdout()
+void CLI::BufferManager::refresh_stdout()
 {
 	if(getBufferCount() > 0){
-		m_softwareCLIdata->draw();
+		m_softwareCLIdata->Draw();
 	}else{
 		// some how, characters are being put into an unbuffered CLI
 		int i=0;i=1/i;
-		printf("CommandLineInterface::refresh_stdout without a buffer\n");
+		printf("BufferManager::refresh_stdout without a buffer\n");
 	}
 }
 
@@ -325,8 +322,7 @@ void CLI::CommandLineInterface::refresh_stdout()
  * is a multi-tabbed command-line interface, or a game with multiple CLI
  * accessible.
  */
-CLI::CommandLineInterface * CLI::getCLI()
-{
+CLI::BufferManager * CLI::getCLI() {
 	return g_CLI;
 }
 
@@ -337,13 +333,11 @@ CLI::CommandLineInterface * CLI::getCLI()
  *
  * Be sure to delete the current CLI
  */
-void CLI::setCLI(CLI::CommandLineInterface * a_CLI)
-{
+void CLI::setCLI(CLI::BufferManager * a_CLI) {
 	g_CLI = a_CLI;
 }
 
-void CLI::move(int row, int col)
-{
+void CLI::move(int row, int col) {
 	if(g_CLI){
 		g_CLI->move(row,col);
 	}else{
@@ -427,7 +421,7 @@ int translateSpecialCharacters(const int& value,
  * @param listCount how many special key sequences there are
  * @param a_CLI the command line interface to get the data from
  */
-int returnKey(const EscapeTranslate * list, const int listCount, CLI::CommandLineInterface * a_CLI) {
+int returnKey(const EscapeTranslate * list, const int listCount, CLI::BufferManager * a_CLI) {
 	int bufrSize = a_CLI->getInputBufferSize();
 	const int *bufr = a_CLI->getInputBuffer();
 	// if there is input in the buffer at all
@@ -504,7 +498,7 @@ int CLI::printf( const char *fmt, ... )
 /** @return key press from input buffer, waits if none. {@link kbhit()} */
 int CLI::getcharBlocking() {
 	refresh();
-	while(!CLI::kbhit()) { CLI::sleep(1); }
+	while(!CLI::kbhit()) { platform_sleep(1); }
 	return CLI::getchar();
 }
 
@@ -512,8 +506,8 @@ int CLI::getcharBlocking() {
 int CLI::getcharBlocking(int a_ms)
 {
 	refresh();
-	long long soon = CLI::upTimeMS()+a_ms;
-	while(!CLI::kbhit() && CLI::upTimeMS() < soon)
+	long long soon = platform_upTimeMS()+a_ms;
+	while(!CLI::kbhit() && platform_upTimeMS() < soon)
 		platform_sleep(1);
 	return CLI::getchar();
 }
@@ -542,8 +536,10 @@ void CLI::init()
 		GetConsoleScreenBufferInfo(__WINDOWS_CLI, &lpConsoleScreenBufferInfo);
 		oldAttributes = lpConsoleScreenBufferInfo.wAttributes;
 		// make ::getchar() read right at the key press, without echoing
-		g_CLI = NEWMEM(CLI::CommandLineInterface);
-		g_CLI->setSize(CLI::getWidth(), CLI::getHeight());
+		g_CLI = NEWMEM(CLI::BufferManager);
+		long w, h;
+		platform_consoleSize(h, w);
+		g_CLI->setSize(w, h);
 	}
 }
 
@@ -565,8 +561,7 @@ int CLI::getWidth()
 {
 	int v = USER_DIDNOT_DEFINE_SIZE;
 	if(g_CLI)v=g_CLI->getWidth();//g_CLI->getUserSize().x;//
-	if(v == USER_DIDNOT_DEFINE_SIZE)
-	{
+	if(v == USER_DIDNOT_DEFINE_SIZE) {
 		CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo;
 		GetConsoleScreenBufferInfo(__WINDOWS_CLI, &lpConsoleScreenBufferInfo);
 		return lpConsoleScreenBufferInfo.dwSize.X;
@@ -579,8 +574,7 @@ int CLI::getHeight()
 {
 	int v = USER_DIDNOT_DEFINE_SIZE;
 	if(g_CLI)v=g_CLI->getHeight();//g_CLI->getUserSize().y;//
-	if(v == USER_DIDNOT_DEFINE_SIZE)
-	{
+	if(v == USER_DIDNOT_DEFINE_SIZE) {
 		CONSOLE_SCREEN_BUFFER_INFO lpConsoleScreenBufferInfo;
 		GetConsoleScreenBufferInfo(__WINDOWS_CLI, &lpConsoleScreenBufferInfo);
 		return lpConsoleScreenBufferInfo.dwSize.Y;
@@ -632,13 +626,13 @@ void platform_move(int row, int col)
 // 	return ::_getch();
 // }
 
-void platform_setColor(int foreground, int background)
-{
-	if(foreground < 0){	foreground = oldAttributes & 0xf;			}
-	if(background < 0){	background = (oldAttributes & 0xf0) >> 4;	}
-	::SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),//__WINDOWS_CLI,
-			(foreground & 0xf) | ( (background & 0xf) << 4) );
-}
+// void platform_setColor(int foreground, int background)
+// {
+// 	if(foreground < 0){	foreground = oldAttributes & 0xf;			}
+// 	if(background < 0){	background = (oldAttributes & 0xf0) >> 4;	}
+// 	::SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE),//__WINDOWS_CLI,
+// 			(foreground & 0xf) | ( (background & 0xf) << 4) );
+// }
 
 /** non-blocking key press, returns -1 if there is no key */
 int CLI::getchar() {
@@ -669,18 +663,18 @@ void CLI::setColor(int foreground, int background)
 }
 
 
-/** pause the CPU for the given number of milliseconds */
-void CLI::sleep(int ms)
-{
-	platform_sleep(ms);
-	//::Sleep(ms);
-}
+// /** pause the CPU for the given number of milliseconds */
+// void CLI::sleep(int ms)
+// {
+// 	platform_sleep(ms);
+// 	//::Sleep(ms);
+// }
 
-/** how many milliseconds since initialization */
-long long CLI::upTimeMS()
-{
-	return ::clock();
-}
+// /** how many milliseconds since initialization */
+// long long CLI::upTimeMS()
+// {
+// 	return ::clock();
+// }
 
 /** @return true if there is a key press waiting */
 bool CLI::kbhit()
@@ -779,7 +773,7 @@ void CLI::init()
 		tcsetattr( STDIN_FILENO, TCSANOW, &currentTerminalIOSettings );
 		FD_ZERO(&g_fds);	// initialize the struct that checks for input
 		gettimeofday(&g_startTime, NULL);	// start the timer
-		g_CLI = NEWMEM(CLI::CommandLineInterface);
+		g_CLI = NEWMEM(CLI::BufferManager);
 		g_CLI->setSize(CLI::getWidth(), CLI::getHeight());
 	}
 }
@@ -912,29 +906,24 @@ long long CLI::upTimeMS()
 #endif
 
 
-void CLI::CLIBuffer::reinitializeDoubleBuffer(int a_numberOfBuffers, Coord a_size)
-{
+void CLI::CLIBuffer::ReinitializeDoubleBuffer(int a_numberOfBuffers, Coord a_size) {
 	int w = a_size.x;
 	int h = a_size.y;
 	bool brandNewAllocation = w != m_size.x || h != m_size.y || !m_mainBuffer;
 	size_t count = w*h;
-	if(brandNewAllocation)
-	{
-		CLIOutputType * buffer = NEWMEM_ARR(CLIOutputType, count);
-		for(unsigned int i = 0; i < count; ++i){
-			buffer[i].set(WHITESPACE,CLI::COLOR::DEFAULT,CLI::COLOR::DEFAULT);
+	if(brandNewAllocation) {
+		Pel * buffer = NEWMEM_ARR(Pel, count);
+		for(unsigned int i = 0; i < count; ++i) {
+			buffer[i].Set(WHITESPACE, platform_defaultFColor(), platform_defaultBColor());
 		}
 		// if the old buffer is being resized
-		if(m_mainBuffer)
-		{
+		if(m_mainBuffer) {
 			// copy all of the old data into the new buffer
 			Coord c;
-			for(int row = 0; row < h; ++row)
-			{
-				for(int col = 0; col < w; ++col)
-				{
-					c.set(col, row);
-					buffer[col+row*w] = *getAt(c);
+			for(int row = 0; row < m_size.y; ++row) {
+				for(int col = 0; col < m_size.x; ++col) {
+					c.Set(col, row);
+					buffer[col+row*w] = *GetAt(c);
 				}
 			}
 			// and kill the old data
@@ -942,64 +931,55 @@ void CLI::CLIBuffer::reinitializeDoubleBuffer(int a_numberOfBuffers, Coord a_siz
 		}
 		m_mainBuffer = buffer;
 	}
-	if((brandNewAllocation && m_historyBuffer)
-	|| (a_numberOfBuffers >= 2 && !m_historyBuffer))
-	{
-		CLIOutputType * buffer2 = NEWMEM_ARR(CLIOutputType, count);
-		for(unsigned int i = 0; i < count; ++i){
-			buffer2[i].set(WHITESPACE+1,CLI::COLOR::DEFAULT,CLI::COLOR::DEFAULT);
+	if((brandNewAllocation && m_historyBuffer) || (a_numberOfBuffers >= 2 && !m_historyBuffer)) {
+		Pel * buffer2 = NEWMEM_ARR(Pel, count);
+		for(unsigned int i = 0; i < count; ++i) {
+			buffer2[i].Set(WHITESPACE+1,platform_defaultFColor(), platform_defaultBColor());
 		}
-		if(m_historyBuffer)
+		if(m_historyBuffer) {
 			DELMEM_ARR(m_historyBuffer);
+		}
 		m_historyBuffer = buffer2;
 	}
 	if(m_cursor.x >= w)	m_cursor.x = w-1;
 	if(m_cursor.y >= h)	m_cursor.y = h-1;
-	m_size.set(w, h);
+	m_size.Set(w, h);
 }
 
-void CLI::CLIBuffer::release()
-{
-	if(m_mainBuffer)
-	{
+void CLI::CLIBuffer::Release() {
+	if(m_mainBuffer) {
 		DELMEM_ARR(m_mainBuffer);
 		DELMEM_ARR(m_historyBuffer);
 		m_mainBuffer = 0;
 		m_historyBuffer = 0;
 	}
-	m_size.set(0,0);
+	m_size.Set(0,0);
 }
 
-void CLI::CLIBuffer::draw()
-{
+void CLI::CLIBuffer::Draw() {
 	platform_move(0,0);
 	CLI::resetColor();
 	/** cursor checking to see if a character should print here */
 	Coord c;
 	/** where the cursor will be next */
 	Coord n;
-	CLIOutputType * cell;
+	Pel * cell;
 	int fcolor = CLI::getFcolor(), bcolor = CLI::getBcolor();
 #ifdef TEST_DIRTY_CELL
 	static int test = 0;
 #endif
 	bool moved;
-	for(c.y = 0; c.y < m_size.y; ++c.y)
-	{
-		for(c.x = 0; c.x < m_size.x; ++c.x)
-		{
-			if(changedSinceLastDraw(c))
-			{
-				int index = correctIndex(c);
+	for(c.y = 0; c.y < m_size.y; ++c.y) {
+		for(c.x = 0; c.x < m_size.x; ++c.x) {
+			if(IsChangedSinceLastDraw(c)) {
+				int index = CorrectIndex(c);
 				cell = &m_mainBuffer[index];
-				if((moved = c!=n || c.y==0))
-				{
+				if((moved = c!=n || c.y==0)) {
 					platform_move(c.y,c.x);
 				}
-				if(moved
-				|| cell->fcolor != fcolor
-				|| cell->bcolor != bcolor)
-				{
+				if(cell->flag & Pel::FLAG_NOCOLOR) {
+					platform_setColor(-1, -1);
+				} else if(moved || cell->fcolor != fcolor || cell->bcolor != bcolor) {
 					fcolor = cell->fcolor;
 					bcolor = cell->bcolor;
 					platform_setColor(fcolor, bcolor);
@@ -1028,7 +1008,10 @@ void CLI::CLIBuffer::draw()
 	CLI::resetColor();
 }
 
-void CLI::CLIBuffer::printTotallyEmptyChar()
-{
+CLI::Coord CLI::GetCursorLocation() {
+	return getCLI()->getOutputBuffer()->getCursorPosition();
+}
+
+void CLI::CLIBuffer::PrintTotallyEmptyChar() {
 	this->putcharDirect(WHITESPACE, CLI::COLOR::DEFAULT, CLI::COLOR::DEFAULT);
 }

@@ -22,7 +22,9 @@ class Game
 	GameState * m_state;
 
 	int throttle;
+
 public:
+	CLI::Coord importantScreenArea;
 	/** stores the next user input to process */
 	int userInput; // TODO make private
 	List<Player> players;
@@ -63,7 +65,7 @@ public:
 				out_move += 1; // move codes start at 1, so 0 can be a null value
 				out_player = p;
 				// const char* moveNames[] = { "none","cancel","up","left","down","right","enter","enter" };
-				// printf("player %d pressed %s\n", out_player, moveNames[out_move]);
+				// CLI::printf("player %d pressed %s\n", out_player, moveNames[out_move]);
 			}
 		}
 		
@@ -132,19 +134,13 @@ public:
 
 	void InitStateMachine(){}
 
-	void InitScreen(int width, int height){
-		CLI::init ();
-		CLI::setSize (width, height);
-		//CLI::setDoubleBuffered(true);
-		CLI::move (0, 0);
-		CLI::fillScreen (' ');
-	}
+	void InitScreen();
 
 	void InitPlayers(int playerCount);
 
-	Game(int numPlayers, int width, int height):m_state(NULL) {
+	Game(int numPlayers):m_state(NULL) {
 		Init();
-		InitScreen(width,height);
+		InitScreen();
 		InitPlayers(numPlayers);
 	}
 	void Release() {
@@ -163,7 +159,10 @@ public:
 	~Game(){Release();}
 
 	void Draw() {
+		CLI::move(0,0);
+		CLI::printf("%s", m_state->GetName().c_str());
 		m_state->Draw();
+		CLI::refresh();
 	}
 
 	void NormalDraw();
@@ -175,7 +174,7 @@ public:
 	void ProcessInput() {
 		switch (userInput) {
 		case 27:
-			printf("Quit!");
+			CLI::printf("Quitting!");
 			m_running = false;
 			break;
 		default:
@@ -192,8 +191,6 @@ public:
 		}
 		if(playerID >= 0) {
 			Player::UpdateInput(*this, *GetPlayer(playerID), moveID);
-		} else {
-			printf("did not understand %d\n", userInput);
 		}
 	}
 
@@ -226,6 +223,6 @@ public:
 	static void UpdateObjectiveBuy(Game&g, Player& p, int userInput);
 	static void UpdateAcquireMarket(Game& g, Player& p, int userInput);
 	static void UpdateMarket(Game& g, Player& p, int userInput);
-	static void PrintObjectives(Game& g, Coord cursor);
-	static void PrintMarket(Game& g, Coord cursor);
+	static void PrintObjectives(Game& g, CLI::Coord cursor);
+	static void PrintMarket(Game& g, CLI::Coord cursor);
 };

@@ -7,7 +7,7 @@
 #include <string>
 #include "dictionary.h"
 #include "state_base.h"
-#include "vector2.h"
+#include "cli.h"
 
 #define MAX_RESOURCES 10
 
@@ -174,8 +174,8 @@ class Player {
 	static void UpdateInput(Game& g, Player& p, int move);
 
 	// drawing UI
-	static void PrintHand (Game& g, Coord pos, int count, Player& p);
-	static void PrintInventory(Game& g, const Player& p, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected);
-	static void PrintResourcesInventory(Game& g, Coord cursor, Player& p);
-	static void PrintUserState(Game& g, Coord cursor, const Player & p);
+	static void PrintHand (Game& g, CLI::Coord pos, int count, Player& p);
+	static void PrintInventory(Game& g, const Player& p, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, CLI::Coord pos, int selected);
+	static void PrintResourcesInventory(Game& g, CLI::Coord cursor, Player& p);
+	static void PrintUserState(Game& g, CLI::Coord cursor, const Player & p);
 };

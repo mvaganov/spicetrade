@@ -7,7 +7,7 @@ class GameNormal : public GameState {
 	virtual void Init (Game*const& a_data) {
 		GameState::Init(a_data);
 	}
-	virtual void Draw() { data->NormalDraw(); printf("normal game"); }
+	virtual void Draw() { data->NormalDraw(); }
 	virtual void ProcessInput (int key) {
 		data->HandlePlayerInput(key);
 	}
@@ -21,7 +21,7 @@ class GameOver : public GameState {
 		CalculateWinners();
 	}
 	void CalculateWinners();
-	virtual void Draw() { data->NormalDraw(); printf("game over"); }
+	virtual void Draw() { data->NormalDraw(); }
 };
 
 // GameNearlyOver : GameState
@@ -42,7 +42,7 @@ class GameNearlyOver : public GameState {
 			}
 		}
 	}
-	virtual void Draw() { data->NormalDraw(); printf("game nearly over"); }
+	virtual void Draw() { data->NormalDraw(); }
 	virtual void ProcessInput (int key) {
 		data->HandlePlayerInput(key);
 	}

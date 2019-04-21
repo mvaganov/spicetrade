@@ -438,7 +438,6 @@ MEM_DEBUG_INFRASTRUCTURE
 #else
 			// if there are no more free blocks
 			if(!block->next){
-printf("allocating another page! %d\n", (int)bytesNeeded);
 				// add another free page, which will append a free block to this free list
 				addPageAtLeastBigEnoughFor(bytesNeeded);
 			}

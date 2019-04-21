@@ -6,19 +6,21 @@ void Game::NormalDraw() {
 	for(int i = 0; i < GetPlayerCount(); ++i) {
 		int column = (i*20);
 		Player& p = *GetPlayer(i);
-		Player::PrintHand (*this, Coord(column+1,9), handDisplayCount, p);
-		Player::PrintResourcesInventory(*this, Coord(column,20), p);
-		Player::PrintUserState(*this, Coord(column,23), p);
+		Player::PrintHand (*this, CLI::Coord(column+1,9), handDisplayCount, p);
+		Player::PrintResourcesInventory(*this, CLI::Coord(column,20), p);
+		Player::PrintUserState(*this, CLI::Coord(column,23), p);
 	}
-	Game::PrintObjectives(*this, Coord(0,2));
-	Game::PrintMarket(*this, Coord(0,6));
+	Game::PrintObjectives(*this, CLI::Coord(0,2));
+	Game::PrintMarket(*this, CLI::Coord(0,6));
 }
 void Game::RefreshInput() {
 	if(CLI::kbhit()){
 		CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1); // reset color
-		CLI::move(0,0);
 		SetInput(CLI::getch ());
-	} else { CLI::sleep(throttle); }
+	} else {
+		platform_move(importantScreenArea.y,importantScreenArea.x);
+		platform_sleep(throttle);
+	}
 }
 
 void Game::Init() {
@@ -67,6 +69,13 @@ void Game::Init() {
 	resourcePutInto.SetLength(market.Length()-1);
 
 	Game::SetState<GameNormal>(*this);
+}
+
+void Game::InitScreen(){
+	CLI::init ();
+	CLI::setDoubleBuffered(true);
+	CLI::fillScreen (' ');
+	CLI::refresh();
 }
 
 void Game::InitPlayers(int playerCount) {
@@ -263,7 +272,6 @@ void Game::UpdateAcquireMarket(Game& g, Player& p, int userInput) {
 	if(paidUp) {
 		GainSelectedMarketCard(g, p);
 	} else if(!paidUp && playerIsReadyToBuy) {
-		printf("CANCELING ");
 		// cancel.
 		p.SetUIState<CardBuy>(g,p);
 		p.marketCardToBuy = -1;
@@ -302,7 +310,7 @@ void Game::UpdateMarket(Game& g, Player& p, int userInput) {
 			} else {
 				int total = p.inventory.Sum();
 				if(total < p.marketCursor || g.market[p.marketCursor] == NULL) {
-					printf("too expensive, cannot afford.\n");
+					CLI::printf("too expensive, cannot afford.\n");
 				} else {
 					p.SetUIState<CardBuyDeep>(g,p);
 				}
@@ -312,7 +320,7 @@ void Game::UpdateMarket(Game& g, Player& p, int userInput) {
 }
 }
 
-void Game::PrintObjectives(Game& g, Coord cursor) {
+void Game::PrintObjectives(Game& g, CLI::Coord cursor) {
 	const Player* currentPlayer = g.playerUIOrder[0];
 	for(int i = 0; i < g.achievements.Length(); ++i) {
 		CLI::move(cursor);
@@ -326,14 +334,15 @@ void Game::PrintObjectives(Game& g, Coord cursor) {
 			}
 		}
 		if(p) { p->SetConsoleColor(g); }
-		putchar((p)?'>':' ');
+		CLI::putchar((p)?'>':' ');
+		if(g.GetCurrentPlayer() == p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		const Objective* o = g.achievements[i];
 		int bg = (o != NULL && Player::CanAfford(g, o->input, currentPlayer->inventory)
 			?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK);
 		Objective::PrintObjective(g, o, bg);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
 		if(p){p->SetConsoleColor(g);}
-		putchar((p)?'<':' ');
+		CLI::putchar((p)?'<':' ');
 		cursor.y++;
 		CLI::move(cursor);
 		CLI::setColor(CLI::COLOR::LIGHT_GRAY, -1);
@@ -353,7 +362,7 @@ void Game::PrintObjectives(Game& g, Coord cursor) {
 	}
 }
 
-void Game::PrintMarket(Game& g, Coord cursor) {
+void Game::PrintMarket(Game& g, CLI::Coord cursor) {
 	const Player* currentPlayer = g.playerUIOrder[0];
 	int totalResources = currentPlayer->inventory.Sum();
 	for(int i = 0; i < g.market.Length(); ++i) {
@@ -369,11 +378,12 @@ void Game::PrintMarket(Game& g, Coord cursor) {
 			}
 		}
 		if(p){p->SetConsoleColor(g);}
-		putchar((p)?'>':' ');
+		CLI::putchar((p)?'>':' ');
+		if(g.GetCurrentPlayer() == p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		PlayAction::PrintAction(g, g.market[i], (totalResources >= i)?CLI::COLOR::DARK_GRAY:CLI::COLOR::BLACK);
 		CLI::setColor(CLI::COLOR::WHITE, -1);
 		if(p){p->SetConsoleColor(g);}
-		putchar((p)?'<':' ');
+		CLI::putchar((p)?'<':' ');
 		cursor.y++;
 		CLI::move(cursor);
 		if(g.acquireBonus[i] != NULL) {

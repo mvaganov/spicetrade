@@ -1,7 +1,6 @@
 #pragma once
 
 #include "clibuffer.h"
-#include "vector2.h"
 
 // TODO make a getstring or getline function that puts getchar input into a given string array of a given size
 
@@ -15,23 +14,23 @@ class CLIBuffer;
 //#define TEST_DIRTY_CELL
 
 /**
- * (C)ommand (L)ine (I)nterface
- * A Windows/Linux abstraction layer for color and cursor position control.
- *
- * Work In Progress
- *
- * @author Michael Vaganov
- */
+* (C)ommand (L)ine (I)nterface
+* A Windows/Linux abstraction layer for color and cursor position control.
+*
+* Work In Progress
+*
+* @author Michael Vaganov
+*/
 namespace CLI
 {
 	/** version information */
 	extern const char *version;
 
 	/** a Command Line Interface object. multiple can be created */
-	class CommandLineInterface
+	class BufferManager
 	{
 		/** size user wants output area to be (not necessarily how big it is) */
-		CLIBuffer::Coord m_userSize;
+		Coord m_userSize;
 		/** if creating a non-standard i/o or using double buffering */
 		CLIBuffer * m_softwareCLIdata;
 		/** input buffer variables used for multi-byte key inputs, like arrow keys */
@@ -41,21 +40,12 @@ namespace CLI
 		/** queues key input entered by the user */
 		int m_inputBuffer[40];
 	public:
-		/** creates a non-double-buffered CommandLineInterface */
-		CommandLineInterface();
-		~CommandLineInterface();
-
-		// /** call before using CLI functions, {@link #release()} expected later */
-		// void init();
-
-		// /** call after done using CLI functions, after {@link #init()} */
-		// void release();
+		/** creates a non-double-buffered BufferManager */
+		BufferManager();
+		~BufferManager();
 
 		/** move the cursor to the given location in the console */
 		void move(int row, int col);
-
-		/** how to put data into the input buffer of this CLI */
-		void insertInput(char a_input);
 
 		/** as stdio.h's printf, built for this CLI environment */
 		int printf(const char *fmt, ...);
@@ -66,7 +56,10 @@ namespace CLI
 		/** @return true if at least one byte is in the input buffer */
 		bool kbhit();
 
-		/** @return key press from input buffer, -1 none. {@link kbhit()} */
+		/**
+		* an additional abstraction layer for platform_conio.h which normalizes multibyte inputs
+		* @return key press from input buffer, -1 none. {@link kbhit()}
+		*/
 		int getchar();
 
 		/** @param a_numbytes how much to absorb of the (beginning end) input buffer */
@@ -79,20 +72,20 @@ namespace CLI
 		void puts( const char *str, const int size );
 
 		/**
-		 * @param text what text to draw
-		 * @param a_x rectangle x
-		 * @param a_y rectangle y
-		 * @param a_w rectangle width
-		 * @param a_h rectangle height
-		 * @param wrapping whether or not to wrap to the next line if the text goes over the edge
-		 */
+		* @param text what text to draw
+		* @param a_x rectangle x
+		* @param a_y rectangle y
+		* @param a_w rectangle width
+		* @param a_h rectangle height
+		* @param wrapping whether or not to wrap to the next line if the text goes over the edge
+		*/
 		void drawText(const char * text, int a_x, int a_y, int a_w, int a_h, bool wraping);
 
-		/** fills the given rectangle with the given character */
+		/** fills the given rectangle with the given character, using the current fcolor and bcolor */
 		void fillRect(int x, int y, int width, int height, char fill);
 
 		/** determine how big the screen the user asked for is */
-		CLI::CLIBuffer::Coord getUserSize();
+		Coord getUserSize();
 
 		/** @return number of columns. may be set with {@link #setSize(int,int)} */
 		int getWidth();
@@ -119,17 +112,17 @@ namespace CLI
 		bool isInitialized();
 
 		/**
-		 * @return 0 for no output buffer (using platform),
-		 * 1 to manage a buffer internally (required for non-standard i/o),
-		 * 2 to keep track of what is printed, reducing redraws where possible
-		 */
+		* @return 0 for no output buffer (using platform),
+		* 1 to manage a buffer internally (required for non-standard i/o),
+		* 2 to keep track of what is printed, reducing redraws where possible
+		*/
 		int getBufferCount();
 
 		/**
-		 * @param a_numberOfBuffers 0 for no output buffer (use platform),
-		 * 1 to manage a buffer internally (required for non-standard i/o),
-		 * 2 to keep track of what is printed, reducing redraws where possible
-		 */
+		* @param a_numberOfBuffers 0 for no output buffer (use platform),
+		* 1 to manage a buffer internally (required for non-standard i/o),
+		* 2 to keep track of what is printed, reducing redraws where possible
+		*/
 		void setBufferCount(int a_numberOfBuffers);
 
 		/** resets color values to default */
@@ -152,21 +145,20 @@ namespace CLI
 	};
 
 	/**
-	 *
-	 * @return the current CLI environment object. Useful if there
-	 * is a multi-tabbed command-line interface, or a game with multiple CLI
-	 * accessible.
-	 */
-	CommandLineInterface * getCLI();
+	* @return the current CLI environment object. Useful if there
+	* is a multi-tabbed command-line interface, or a game with multiple CLI
+	* accessible.
+	*/
+	BufferManager * getCLI();
 
 	/**
-	 * Sets the current CLI environment object to another one. Useful if there
-	 * is a multi-tabbed command-line interface, or an app with multiple CLI
-	 * accessible.
-	 *
-	 * Be sure to delete the current CLI before setting a new one!
-	 */
-	void setCLI(CommandLineInterface * a_CLI);
+	* Sets the current CLI environment object to another one. Useful if there
+	* is a multi-tabbed command-line interface, or an app with multiple CLI
+	* accessible.
+	*
+	* Be sure to delete the current CLI before setting a new one!
+	*/
+	void setCLI(BufferManager * a_CLI);
 
 	/** call before using CLI functions, {@link #release()} expected later */
 	void init();
@@ -176,7 +168,7 @@ namespace CLI
 
 	/** move the cursor to the given location in the console */
 	void move(int row, int col);
-	inline void move(Coord pos) { move(pos.y, pos.x); }
+	inline void move(CLI::Coord pos) { move(pos.y, pos.x); }
 
 	/** @return key press from input buffer, -1 none. {@link kbhit()} */
 	int getchar();
@@ -189,6 +181,8 @@ namespace CLI
 	/** @param a_ms waits this many ms, otherwise: {@link #getcharBlocking()} */
 	int getcharBlocking(int a_ms);
 
+	Coord GetCursorLocation();
+
 	/** refresh the screen */
 	void refresh();
 
@@ -198,11 +192,11 @@ namespace CLI
 	/** use CLI::COLOR values for foreground and background */
 	void setColor(int foreground, int background);
 
-	/** pause the CPU for the given number of milliseconds */
-	void sleep(int ms);
+	// /** pause the CPU for the given number of milliseconds */
+	// void sleep(int ms);
 
-	/** how many milliseconds since {@link #init()} */
-	long long upTimeMS();
+	// /** how many milliseconds since {@link #init()} */
+	// long long upTimeMS();
 
 	/** @return true if at least one byte is in the input buffer */
 	bool kbhit();

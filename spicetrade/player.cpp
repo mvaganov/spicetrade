@@ -14,7 +14,7 @@ void Player::SetConsoleColor(Game& g) const {
 }
 
 void Player::SetConsoleColorBlink() const {
-	if((CLI::upTimeMS() & (1 << 9)) == 0){
+	if((platform_upTimeMS() & (1 << 9)) == 0){
 		CLI::setColor(bcolor,fcolor);
 	} else {
 		CLI::setColor(fcolor,bcolor);
@@ -176,7 +176,6 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		if(p.handOffset < 0) { p.handOffset = 0; }
 	}	break;
 	case Game::MOVE_RIGHT: {
-		printf("prediction algorithms disabled\n"); break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
 		if (isSelected == NULL) {
 			if(p.currentRow < p.handPrediction.Count()){
@@ -190,7 +189,6 @@ void Player::UpdateHand (Game& g, Player& p, int userInput, int count) {
 		}
 	} break;
 	case Game::MOVE_LEFT: {
-		printf("prediction and order adjustment algorithms disabled\n"); break;
 		int* isSelected = p.selectedMark.GetPtr (p.currentRow);
 		if (isSelected != NULL) {
 			int sindex = p.selected.IndexOf (p.currentRow);
@@ -300,7 +298,7 @@ void Player::UpdateInput(Game& g, Player& p, int move) {
 	p.uistate->ProcessInput(move);
 }
 
-void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
+void Player::PrintHand (Game& g, CLI::Coord pos, int count, Player& p) {
 	CLI::resetColor();
 	int limit = p.hand.Count () + p.played.Count ();
 	int extraSpaces = count - (limit - p.handOffset);
@@ -314,6 +312,7 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 		if (Player::IsState<HandManage>(p) && i == p.currentRow) {
 			p.SetConsoleColor(g);
 			CLI::putchar ((!isplayed ? '>' : 'x'));
+			if(g.GetCurrentPlayer() == &p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		} else {
 			CLI::putchar (' ');
 		}
@@ -357,7 +356,7 @@ void Player::PrintHand (Game& g, Coord pos, int count, Player& p) {
 	CLI::resetColor();
 }
 
-void Player::PrintInventory(Game& g, const Player& p, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, Coord pos, int selected) {
+void Player::PrintInventory(Game& g, const Player& p, int background, int numberWidth, bool showZeros, List<int> & inventory, const VList<const ResourceType*>& collectableResources, CLI::Coord pos, int selected) {
 	CLI::move (pos.y, pos.x);
 	int fcolor = CLI::COLOR::LIGHT_GRAY;
 	CLI::setColor (fcolor, background);
@@ -367,6 +366,7 @@ void Player::PrintInventory(Game& g, const Player& p, int background, int number
 		if(i == selected) {
 			if(Player::IsState<ResWaste>(p)){p.SetConsoleColorBlink();}else{p.SetConsoleColor(g);}
 			CLI::putchar('>');CLI::setColor (fcolor, background);
+			if(g.GetCurrentPlayer() == &p) { g.importantScreenArea = CLI::GetCursorLocation(); }
 		} else { CLI::putchar(' '); }
 		CLI::setColor (collectableResources[i]->color);
 		if(showZeros || inventory[i] != 0) {
@@ -385,7 +385,7 @@ void Player::PrintInventory(Game& g, const Player& p, int background, int number
 	}
 }
 
-void Player::PrintResourcesInventory(Game& g, Coord cursor, Player& p){
+void Player::PrintResourcesInventory(Game& g, CLI::Coord cursor, Player& p){
 	const int numberWidth = 2;
 	CLI::resetColor();
 	if(p.validPrediction == PredictionState::valid || p.validPrediction == PredictionState::invalid) {
@@ -418,7 +418,7 @@ void printspaces(int x) {
 	for(int i=0;i<x;++i){CLI::putchar(' ');}
 }
 
-void Player::PrintUserState(Game& g, Coord cursor, const Player & p) {
+void Player::PrintUserState(Game& g, CLI::Coord cursor, const Player & p) {
 	int MAXWIDTH = 19;
 	CLI::move (cursor);
 	if(g.GetCurrentPlayer()==&p) { p.SetConsoleColor(g); }
