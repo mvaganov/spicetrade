@@ -26,51 +26,52 @@ int returnKey(const EscapeTranslate * list, const int listCount, CLI::BufferMana
 
 #define _K(name)	CLI::KEY::name
 const EscapeTranslate listWin[] = {
-		{0x00003b00,_K(F1)},
-		{0x00003c00,_K(F2)},
-		{0x00003d00,_K(F3)},
-		{0x00003e00,_K(F4)},
-		{0x00003f00,_K(F5)},
-		{0x00004000,_K(F6)},
-		{0x00004100,_K(F7)},
-		{0x00004200,_K(F8)},
-		{0x00004300,_K(F9)},
-		{0x00004400,_K(F10)},
-		{0x000085e0,_K(F11)},
-		{0x000086e0,_K(F12)},
-		{0x000048e0,_K(UP)},
-		{0x00004be0,_K(LEFT)},
-		{0x00004de0,_K(RIGHT)},
-		{0x000047e0,_K(HOME)},
-		{0x00004fe0,_K(END)},
-		{0x000049e0,_K(PAGE_UP)},
-		{0x000050e0,_K(DOWN)},
-		{0x000051e0,_K(PAGE_DOWN)},
-		{0x000052e0,_K(INSERT)},
-		{0x000053e0,_K(DELETEKEY)},
+	{0x00003b00,_K(F1)},
+	{0x00003c00,_K(F2)},
+	{0x00003d00,_K(F3)},
+	{0x00003e00,_K(F4)},
+	{0x00003f00,_K(F5)},
+	{0x00004000,_K(F6)},
+	{0x00004100,_K(F7)},
+	{0x00004200,_K(F8)},
+	{0x00004300,_K(F9)},
+	{0x00004400,_K(F10)},
+	{0x000085e0,_K(F11)},
+	{0x000086e0,_K(F12)},
+	{0x000048e0,_K(UP)},
+	{0x00004be0,_K(LEFT)},
+	{0x00004de0,_K(RIGHT)},
+	{0x000047e0,_K(HOME)},
+	{0x00004fe0,_K(END)},
+	{0x000049e0,_K(PAGE_UP)},
+	{0x000050e0,_K(DOWN)},
+	{0x000051e0,_K(PAGE_DOWN)},
+	{0x000052e0,_K(INSERT)},
+	{0x000053e0,_K(DELETEKEY)},
 };
 const EscapeTranslate listTTY[] = {
-	// TODO platform_conio was developed since this lib was used.
-		// {3, "\033OH",_K(HOME)},
-		// {3, "\033OF",_K(END)},
-		// {3, "\033OQ",_K(F2)},
-		// {3, "\033OR",_K(F3)},
-		// {3, "\033OS",_K(F4)},
-		// {5, "\033[15~",_K(F5)},
-		// {5, "\033[17~",_K(F6)},
-		// {5, "\033[18~",_K(F7)},
-		// {5, "\033[19~",_K(F8)},
-		// {3, "\033[A",_K(UP)},
-		// {3, "\033[B",_K(DOWN)},
-		// {3, "\033[C",_K(RIGHT)},
-		// {3, "\033[D",_K(LEFT)},
-		// {4, "\033[2~",_K(INSERT)},
-		// {5, "\033[20~",_K(F9)},
-		// {5, "\033[24~",_K(F12)},
-		// {4, "\033[3~",_K(DELETEKEY)},
-		// {4, "\033[5~",_K(PAGE_UP)},
-		// {4, "\033[6~",_K(PAGE_DOWN)},
-		{0,0}
+	{0x0000411b,_K(UP)},
+	{0x0000441b,_K(LEFT)},
+	{0x0000421b,_K(DOWN)},
+	{0x0000431b,_K(RIGHT)},
+	{0x00504f1b,_K(F1)},
+	{0x00514f1b,_K(F2)},
+	{0x00524f1b,_K(F3)},
+	{0x00534f1b,_K(F4)},
+	{0x7e35311b,_K(F5)},
+	{0x7e37311b,_K(F6)},
+	{0x7e38311b,_K(F7)},
+	{0x7e39311b,_K(F8)},
+	{0x7e30321b,_K(F9)},
+	{0x7e31321b,_K(F10)},
+	{0x7e32321b,_K(F11)},
+	{0x7e34321b,_K(F12)},
+	{0x007e331b,_K(DELETEKEY)},
+	// {3, "\033OH",_K(HOME)},
+	// {3, "\033OF",_K(END)},
+	// {4, "\033[2~",_K(INSERT)},
+	// {4, "\033[5~",_K(PAGE_UP)},
+	// {4, "\033[6~",_K(PAGE_DOWN)},
 };
 #undef _K
 
@@ -742,16 +743,17 @@ const int g_ESC_SEQ_LIST_SIZE = sizeof(listTTY)/sizeof(*listTTY);
 
 int CLI::getchar()
 {
-	if(g_CLI){
-		if(platform_kbhit()){
-			int bufrSize = g_CLI->getInputBufferSize();
-			char *bufr = g_CLI->getInputBuffer();
-			// add something to the input buffer if there is anything
-			int bytesInHardware = ::read(STDIN_FILENO, (bufr+bufrSize),
-					sizeof(bufr)-bufrSize);
-			bufrSize += bytesInHardware;
-			g_CLI->setInputBufferSize(bufrSize);
+	if(g_CLI) {
+		int bufrSize = g_CLI->getInputBufferSize();
+		int *bufr = g_CLI->getInputBuffer();
+		while(platform_kbhit()){
+			// // add something to the input buffer if there is anything
+			// int bytesInHardware = ::read(STDIN_FILENO, (bufr+bufrSize),
+			// 		sizeof(bufr)-bufrSize);
+			bufr[bufrSize] = platform_getch();
+			bufrSize ++;
 		}
+		g_CLI->setInputBufferSize(bufrSize);
 		return g_CLI->getchar();
 	}else{
 		if(platform_kbhit()){
@@ -874,34 +876,6 @@ void CLI::setColor(int foreground, int background)
 	}else{
 		platform_setColor(foreground, background);
 	}
-}
-
-/** pause the CPU for the given number of milliseconds */
-void CLI::sleep(int a_ms)
-{
-	static timeval endTime, startTime;
-	static time_t seconds, useconds, ms;
-	gettimeofday(&startTime, NULL);
-	ms = 0;
-	while(ms < a_ms)
-	{
-		usleep(128);	// sleeps "microseconds worth" of CPU-instructions
-		gettimeofday(&endTime, NULL);					// but we must calculate
-		seconds  = endTime.tv_sec  - startTime.tv_sec;	// how much time was
-		useconds = endTime.tv_usec - startTime.tv_usec;	// really spent
-		ms = seconds*1000 + useconds/1000;
-	}
-}
-
-long long CLI::upTimeMS()
-{
-	static timeval now;
-	static time_t seconds, useconds, ms;
-	gettimeofday(&now, NULL);
-	seconds  = now.tv_sec  - g_startTime.tv_sec;
-	useconds = now.tv_usec - g_startTime.tv_usec;
-	ms = seconds*1000 + useconds/1000;
-	return ms;
 }
 #endif
 

@@ -2,7 +2,7 @@
 EXE=spicetrade.exe
 CC=g++
 CFLAGS= -std=gnu++11
-LDFLAGS= -lws2_32 
+LDFLAGS= 
 SRC_PATH=spicetrade/
 BIN_PATH=bin/
 INCL=-I $(SRC_PATH)

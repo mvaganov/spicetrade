@@ -328,15 +328,26 @@ inline long platform_getchar () {
 	if (__platform_kbhitCheck ()) {
 		buffer = 0;
 		read (STDIN_FILENO, (char*)&buffer, 1); // read only one byte
-		switch (buffer) {
-		case '\033': // if it is an escape sequence, read some more...
-			read (STDIN_FILENO, ((char*)&buffer) + 1, 1);
-			switch (((char*)&buffer)[1]) {
-			case '[': // possibly arrow keys
-				read (STDIN_FILENO, ((char*)&buffer) + 2, 1);
+		if(__platform_kbhitCheck ()) {
+			switch (buffer) {
+			case '\033': // if it is an escape sequence, read some more...
+				read (STDIN_FILENO, ((char*)&buffer) + 1, 1);
+				switch (((char*)&buffer)[1]) {
+				case '[': // possibly arrow keys
+					read (STDIN_FILENO, ((char*)&buffer) + 1, 1); // overwrite the '['
+					if(__platform_kbhitCheck ()) { // possible F5 key
+						read (STDIN_FILENO, ((char*)&buffer) + 2, 1);
+						if(__platform_kbhitCheck ()) { // possible F5 key
+							read (STDIN_FILENO, ((char*)&buffer) + 3, 1);
+						}
+					}
+					break;
+				case 0x4f: // possible F1,F2,F3,F4 key
+					read (STDIN_FILENO, ((char*)&buffer) + 2, 1);
+					break;
+				}
 				break;
 			}
-			break;
 		}
 	}
 	__platform_undoConsoleInputMode (); // revert to regular input mode, so scanf/std::cin will work
@@ -375,6 +386,10 @@ inline void platform_setColor (long foreground, long background) {
 		printf ("\033[49m"); // default background color
 	fflush (stdout);
 }
+
+// TODO create a function with static variables to store these
+inline int platform_defaultFColor() { return -1; }
+inline int platform_defaultBColor() { return -1; }
 
 inline void platform_sleep (long a_ms) {
 	//	long seconds = a_ms / 1000;

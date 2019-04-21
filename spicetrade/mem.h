@@ -14,8 +14,11 @@
  * NEWMEM and NEWMEM_ARR for object and array allocations, and
  * NEWMEM_SOURCE_TRACE(expression) around highly tested and stable allocations
  */
-#define USE_CUSTOM_MEMORY_MANAGEMENT
 
+// memory allocator needs some work. Windows works, but POSIX seems less forgiving with this implementaiton.
+#ifdef _WIN32
+#define USE_CUSTOM_MEMORY_MANAGEMENT
+#endif
 
 #ifdef USE_CUSTOM_MEMORY_MANAGEMENT
 

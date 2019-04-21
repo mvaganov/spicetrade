@@ -54,8 +54,6 @@
 //   _inventoryPredicted
 
 int main (int argc, const char** argv) {
-	// CLI::init();
-	// CLI::release();
 	Game g(1);
 	while (g.IsRunning()) {
 		g.Draw();
