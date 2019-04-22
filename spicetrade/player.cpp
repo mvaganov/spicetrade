@@ -424,8 +424,14 @@ void Player::PrintUserState(Game& g, CLI::Coord cursor, const Player & p) {
 	int MAXWIDTH = 19;
 	CLI::move (cursor);
 	if(g.GetCurrentPlayer()==&p) { p.SetConsoleColor(g); }
-	else{CLI::resetColor();}
-	CLI::printf ("%.*s", MAXWIDTH, p.name.c_str());
+	else{ CLI::resetColor(); }
+	const char * display = NULL;
+	if(g.GetCurrentPlayer() == &p) {
+		display = p.controls.c_str();
+	} else {
+		display = p.name.c_str();
+	}
+	CLI::printf ("%.*s", MAXWIDTH, display);
 	printspaces(MAXWIDTH-p.name.length());
 	CLI::resetColor();
 	cursor.y ++; CLI::move (cursor); 

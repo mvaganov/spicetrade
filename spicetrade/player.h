@@ -19,6 +19,7 @@ class Game;
 class Player {
   public:
 	std::string name;
+	std::string controls;
 	VList<Objective> achieved;
 
 	VList<const PlayAction*> hand;

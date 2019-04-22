@@ -52,9 +52,13 @@
 //   achievements
 //   _handPredicted
 //   _inventoryPredicted
+#include <iostream>
 
 int main (int argc, const char** argv) {
-	Game g(1);
+	int numPlayers;
+	std::cout << "How many players? ";
+	std::cin >> numPlayers;
+	Game g(numPlayers);
 	while (g.IsRunning()) {
 		g.Draw();
 		g.RefreshInput();

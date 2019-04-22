@@ -94,6 +94,7 @@ void Game::InitPlayers(int playerCount) {
 	};
 	players.SetLength(playerCount);
 	playerUIOrder.SetLength(players.Length());
+	const std::string controls[] = { "wasd e", "ijkl o", "UpLftDwnRgt Enter", "8426 5" };
 	for(int i = 0; i < playerCount; ++i) {
 		Player* p = &(players[i]);
 		std::string name = "player "+std::to_string(i);
@@ -103,7 +104,8 @@ void Game::InitPlayers(int playerCount) {
 		p->handPrediction.Copy(p->hand);
 		p->playedPrediction.Copy(p->played);
 		p->inventory[0] = 2; // start with 2 basic resource
-		Player::SetUIState<HandManage>(*this,*p);
+		Player::SetUIState<HandManage>(*this, *p);
+		p->controls = controls[i];
 	}
 	currentPlayer = 0;
 	// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
