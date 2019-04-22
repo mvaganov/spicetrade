@@ -53,7 +53,7 @@ public:
 	void ConvertKeyToPlayerMove(int key, int& out_player, int& out_move) {
 		const int p0[] = {'q','w','a','s','d','e','x'};
 		const int p1[] = {'u','i','j','k','l','o','m'};
-		const int p2[] = {'\n',CLI::KEY::UP,CLI::KEY::LEFT,CLI::KEY::DOWN,CLI::KEY::RIGHT,'\n','\r'};
+		const int p2[] = {'\b',CLI::KEY::UP,CLI::KEY::LEFT,CLI::KEY::DOWN,CLI::KEY::RIGHT,'\n','\r'};
 		const int p3[] = {'-','8','4','2','6','0', '5'};
 		const int* moves[] = { p0, p1, p2, p3 };
 		const int num_player_controls = sizeof(moves)/sizeof(moves[0]);
@@ -164,6 +164,7 @@ public:
 		case 27:
 			platform_move(0,0);
 			m_running = false;
+			CLI::resetColor();
 			break;
 		default:
 			m_state->ProcessInput(userInput);

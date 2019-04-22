@@ -87,8 +87,8 @@ void Game::Draw() {
 
 void Game::InitScreen(){
 	CLI::init ();
-	//CLI::setDoubleBuffered(true);
-	//CLI::fillScreen (' ');
+	CLI::setDoubleBuffered(true);
+	CLI::fillScreen (' ');
 	CLI::refresh();
 }
 

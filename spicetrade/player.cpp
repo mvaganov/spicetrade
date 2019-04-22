@@ -296,7 +296,6 @@ void Player::UpdateInventory(Game& g, Player& p, int userInput) {
 
 void Player::UpdateInput(Game& g, Player& p, int move) {
 	if(p.uistate == NULL) {
-		p.Init(g);
 		Player::SetUIState<HandManage>(g,p);
 	}
 	p.uistate->ProcessInput(move);

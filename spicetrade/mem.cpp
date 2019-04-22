@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-//#define MEM_LINKED_LIST
+#define MEM_LINKED_LIST
 
 #define VERIFY_INTEGRITY
 
@@ -199,6 +199,7 @@ struct MemManager {
 //		printf("addPage\n");
 		MemBlock ** ptrToLast = ptrTolastBlock(freeList);
 		(*ptrToLast) = (*lastP)->firstBlock();
+		// if(freeList == NULL) { printf("~~~~~~ ADDPAGE %lu\n", size); }
 #endif
 		return *lastP;
 	}
@@ -209,6 +210,7 @@ struct MemManager {
 //		printf("addPageAtLeastBigEnoughFor\n");
 		MemBlock ** ptrToLast = ptrTolastBlock(freeList);
 		(*ptrToLast) = (*lastP)->firstBlock();
+		// if(freeList == NULL) { printf("~~~~~~ addPageAtLeastBigEnoughFor %lu\n", size);}
 #endif
 		return *lastP;
 	}
@@ -300,6 +302,7 @@ MEM_DEBUG_INFRASTRUCTURE
 MEM_DEBUG_INFRASTRUCTURE
 				// try to make one
 				page = addPageAtLeastBigEnoughFor(bytesNeeded);
+				// printf("~~~~~~~ created a page that can store %lu bytes (%lu)\n", bytesNeeded, page->size);
 				// if there is _still_ no page
 MEM_DEBUG_INFRASTRUCTURE
 				if(!page){
@@ -310,11 +313,21 @@ MEM_DEBUG_INFRASTRUCTURE
 					return 0;
 				}
 			}
-			// if no valid block is being checed at the moment
-			if(!block){
+			// if no valid block is being checked at the moment
+			if(!block) {
 #ifdef MEM_LINKED_LIST
+				if(freeList == NULL) {
+					// printf("~~~~~ no free blocks. Need to create a new page?");
+					page = addPageAtLeastBigEnoughFor(bytesNeeded);
+					freeList = page->firstBlock();
+				}
 				prevNextPtr = &freeList;
 				block = freeList;
+				// if(block != NULL) {
+				// 	printf("~~~~~ got one!~~~~~~~\n");
+				// } else {
+				// 	printf("~~~~~ oh noes.~~~~~~~\n");
+				// }
 #else
 				// memory will have to be traversed from the first block at the beginning of the page
 				block = page->firstBlock();
@@ -324,7 +337,7 @@ MEM_DEBUG_INFRASTRUCTURE
 			}
 #ifndef MEM_LINKED_LIST
 			// check if the current memory block is free
-			if(block->isFree()){
+			if(block->isFree()) {
 				// extended this free block as far as possible (till the block right after isn't free)
 				MemBlock * nextNode = block->nextContiguousBlock();
 				while((size_t)nextNode < endOfThisPage && nextNode->isFree()){
@@ -339,8 +352,8 @@ MEM_DEBUG_INFRASTRUCTURE
 #	endif
 					nextNode = nextNode->nextContiguousBlock();
 #	ifdef MEM_CLEARED_HEADER
-					size_t numInts = sizeof(MemBlock)/sizeof(ptrdiff_t);
-					for(int i = 0; i < numInts; ++i) {
+					size_t numClears = sizeof(MemBlock)/sizeof(ptrdiff_t);
+					for(int i = 0; i < numClears; ++i) {
 						imem[i]=MEM_CLEARED_HEADER;
 					}
 #	endif
@@ -350,6 +363,7 @@ MEM_DEBUG_INFRASTRUCTURE
 MEM_DEBUG_INFRASTRUCTURE
 				// if it has enough space to be spliced into 2 blocks
 				if(block->getSize() > bytesNeeded+sizeof(MemBlock)) {
+					// printf("~~~~~~ splitting block %lu bytes (need %lu)", block->getSize(), bytesNeeded+sizeof(MemBlock));
 					// mark another free block where this one will end
 					MemBlock * next = block->nextContiguousHeader(bytesNeeded);
 					next->setSize(block->getSize() - (bytesNeeded+sizeof(MemBlock)));
@@ -364,11 +378,17 @@ MEM_DEBUG_INFRASTRUCTURE
 #endif
 					// and make this block exactly the size needed
 					block->setSize(bytesNeeded);
+					// printf("~~~~~~ now there are 2 blocks, %lu and %lu\n", block->getSize(), next->getSize());
 #ifdef MEM_LINKED_LIST
 					// maintain free list integrity
 					block->next = next;
 #endif
 				}
+				// else if(block->getSize() == bytesNeeded+sizeof(MemBlock)) {
+				// 	printf("~~~~~~ block has exactly as much as needed! %d\n", block->getSize());
+				// } else {
+				// 	printf("~~~~~~ block needs more space. has %lu, needs %lu!\n", block->getSize(), bytesNeeded+sizeof(MemBlock));
+				// }
 MEM_DEBUG_INFRASTRUCTURE
 				// if the current block has enough space for this allocation
 				if(block->getSize() >= bytesNeeded){
@@ -396,7 +416,12 @@ MEM_DEBUG_INFRASTRUCTURE
 MEM_DEBUG_INFRASTRUCTURE
 #ifdef MEM_LINKED_LIST
 					// remove this mem block from the free list
+					// TODO only remove the free block if it was actually used... it may not have been used because it was too small!
 					*prevNextPtr = block->next;
+					// if(freeList == NULL) {
+					// 	printf("~~~~~~~~~ OH NO. LAST FREE ITEM IS LOST.\n");
+
+					// }
 					// push this on the list
 					block->next = usedList;
 					usedList = block;
@@ -518,6 +543,7 @@ MEM_DEBUG_INFRASTRUCTURE
 			// push it on the list.
 			header->next = freeList;
 			freeList = header;	// push it real good.
+			// if(freeList == NULL) { printf("~~~~~~~~~ THIS SHOULD BE IMPOSSIBLE!\n"); }
 		}
 #endif
 	}
@@ -536,7 +562,7 @@ MEM_DEBUG_INFRASTRUCTURE
 			do{
 				MemBlock* block = current->firstBlock();
 				MemBlock* endOfThisPage = (MemBlock*)endOfPage(current);
-				printf("page %d [0x%08x -> 0x%08x) (%lu bytes)\n", pages, current, endOfThisPage, ((size_t)endOfThisPage-(size_t)current));
+				printf("page %d [0x%08lx -> 0x%08lx) (%lu bytes)\n", pages, (long)current, (long)endOfThisPage, ((size_t)endOfThisPage-(size_t)current));
 				do{
 					if(!block->isFree()) {
 						if(verbose) {
@@ -547,7 +573,7 @@ MEM_DEBUG_INFRASTRUCTURE
 						usedBytes += block->getSize();
 					}else{
 						if(verbose) {
-							printf("%d bytes free\n");
+							printf("%d bytes free\n", (int)block->getSize());
 						}
 						freeSectors++;
 						freeBytes += block->getSize();
