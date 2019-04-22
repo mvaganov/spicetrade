@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MEM_LINKED_LIST
+//#define MEM_LINKED_LIST
 
 #define VERIFY_INTEGRITY
 
