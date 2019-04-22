@@ -105,7 +105,7 @@ namespace MEM
 	int RELEASE_MEMORY();
 
 	/** reports current memory usage */
-	void REPORT_MEMORY();
+	void REPORT_MEMORY(bool verbose = false);
 
 	/** @return how much memory is allocated at this valid location (if the memory manager is being used) */
 	int getAllocatedHere(void * a_location);

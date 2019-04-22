@@ -55,14 +55,16 @@
 #include <iostream>
 
 int main (int argc, const char** argv) {
-	int numPlayers;
-	std::cout << "How many players? ";
-	std::cin >> numPlayers;
-	Game g(numPlayers);
+	int numPlayers=2;
+	// std::cout << "How many players? ";
+	// std::cin >> numPlayers;
+	Game g;
+	g.Init(numPlayers);
+//	MEM::REPORT_MEMORY();
 	while (g.IsRunning()) {
 		g.Draw();
-		g.RefreshInput();
-		g.Update();
+	 	g.RefreshInput();
+	 	g.Update();
 	}
 	return 0;
 }

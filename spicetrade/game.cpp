@@ -23,16 +23,9 @@ void Game::RefreshInput() {
 	}
 }
 
-void Game::Init() {
-	throttle = 50;
-	m_running = true;
-	handDisplayCount = 10;
-	goldLeft = 5;
-	silverLeft = 5;
-	maxInventory = 10;
-
+void Game::InitGame() {
 	for (int i = 0; i < g_len_resources; ++i) {
-		resourceLookup.Set (g_resources[i].icon, &(g_resources[i]));
+		NEWMEM_SOURCE_TRACE(resourceLookup.Set (g_resources[i].icon, &(g_resources[i]));)
 		if (g_resources[i].type == ResourceType::Type::resource) {
 			collectableResources.Add (&(g_resources[i]));
 			resourceIndex.Set (g_resources[i].icon, i);
@@ -71,6 +64,20 @@ void Game::Init() {
 	Game::SetState<GameNormal>(*this);
 }
 
+void Game::Init(int numPlayers) {
+	m_state = NULL;
+	throttle = 50;
+	m_running = true;
+	handDisplayCount = 10;
+	goldLeft = numPlayers*2;
+	silverLeft = numPlayers*2;
+	maxInventory = 10;
+
+	NEWMEM_SOURCE_TRACE(InitGame();)
+	NEWMEM_SOURCE_TRACE(InitScreen();)
+	NEWMEM_SOURCE_TRACE(InitPlayers(numPlayers);)
+}
+
 void Game::Draw() {
 	CLI::move(0,0);
 	CLI::printf("%s", m_state->GetName().c_str());
@@ -80,8 +87,8 @@ void Game::Draw() {
 
 void Game::InitScreen(){
 	CLI::init ();
-	CLI::setDoubleBuffered(true);
-	CLI::fillScreen (' ');
+	//CLI::setDoubleBuffered(true);
+	//CLI::fillScreen (' ');
 	CLI::refresh();
 }
 
@@ -108,7 +115,6 @@ void Game::InitPlayers(int playerCount) {
 		p->controls = controls[i];
 	}
 	currentPlayer = 0;
-	// TODO change the order as the players turn changes. order should be who-is-going-next, with the current-player at the top.
 }
 
 bool Game::IsEvenOnePlayerIsResourceManaging(const List<Player*>& players) {

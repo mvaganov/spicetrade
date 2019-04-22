@@ -40,9 +40,9 @@ public:
 	List<int> resourcePutInto; // used during acquire and upgrade UI
 
 	// how many cards to display vertically at once (can scroll)
-	int handDisplayCount = 10;
-	int goldLeft = 5, silverLeft = 5;
-	int maxInventory = 10;
+	int handDisplayCount;
+	int goldLeft, silverLeft;
+	int maxInventory;
 	static const int COUNT_OBJECTIVE_TO_WIN = 6;
 
 	static const int achievementCards = 5; // TODO rename COUNT_OBJECTIVE_FIELD
@@ -67,10 +67,9 @@ public:
 				// CLI::printf("player %d pressed %s\n", out_player, moveNames[out_move]);
 			}
 		}
-		
 	}
 
-	void Init();
+	void Init(int numPlayers);
 
 	char ColorOfRes (char icon) {
 		const ResourceType* r = resourceLookup.Get (icon);
@@ -131,17 +130,12 @@ public:
 		next->Init(&g);
 	}
 
-	void InitStateMachine(){}
+	void InitGame();
 
 	void InitScreen();
 
 	void InitPlayers(int playerCount);
 
-	Game(int numPlayers):m_state(NULL) {
-		Init();
-		InitScreen();
-		InitPlayers(numPlayers);
-	}
 	void Release() {
 		for(int i = 0; i < acquireBonus.Length(); ++i) {
 			if(acquireBonus[i] != NULL) {
