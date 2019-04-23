@@ -15,9 +15,9 @@
 
 // memory allocator needs some work. Windows works, but POSIX seems less forgiving with this implementaiton.
 // TODO discover why this does not work on the linux box (?).
-#ifdef _WIN32
+// #ifdef _WIN32
 #define USE_CUSTOM_MEMORY_MANAGEMENT
-#endif
+// #endif
 
 #ifdef USE_CUSTOM_MEMORY_MANAGEMENT
 

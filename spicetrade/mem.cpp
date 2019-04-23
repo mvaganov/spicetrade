@@ -4,13 +4,10 @@
 
 #ifdef USE_CUSTOM_MEMORY_MANAGEMENT
 
-// this is used for memory debugging, to stop at a specific allocation
-//#define WAITING_FOR_ALLOCATION_ID 2
-
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MEM_LINKED_LIST
+//#define MEM_LINKED_LIST
 
 #define VERIFY_INTEGRITY
 
@@ -23,11 +20,6 @@ struct MemPage;
 #elif defined(ENVIRONMENT64)
 #define SIZEOFMEMBLOCKSIZE	63
 #endif
-
-
-//#include "../scripting/tokenenclosure.h"
-//extern TemplateVector<TokenRule*> * g_rules;
-#define MEM_DEBUG_INFRASTRUCTURE	//	printf("[g_rules: 0x%08x]%s:%d\n", g_rules, "mem", __LINE__);
 
 
 void* operator new(size_t num_bytes) __NEWTHROW
@@ -59,14 +51,11 @@ public:
 	const char *filename;
 	size_t line;
 	size_t allocID;	// which allocation this is
-	inline void setupDebugInfo(const char *a_filename, size_t a_line, size_t a_allocID){
+	inline void setupDebugInfo(const char *a_filename, size_t a_line, size_t a_allocID) {
 		signature = MEM_LEAK_DEBUG;
 		filename = a_filename;
 		line = a_line;
 		allocID = a_allocID;
-#ifdef WAITING_FOR_ALLOCATION_ID
-		if(allocID == WAITING_FOR_ALLOCATION_ID) { int i=0;i=1/i; }
-#endif
 	}
 #endif
 	/** @return true if this block is marked as free */
@@ -108,6 +97,13 @@ struct MemPage {
 	}
 };
 
+static void __failIf(bool condition, const char * message) {
+	if(condition) {
+		printf("%s", message);
+		int i=0;i=1/i;
+	}
+}
+
 /** manages memory */
 struct MemManager {
 	/** the first memory page, which links to subsequent pages like a linked list */
@@ -142,22 +138,25 @@ struct MemManager {
 		while(*ptr) {
 			ptr = &((*ptr)->next);
 #ifdef MEM_LEAK_DEBUG
-			if(*ptr == whichList) {
-				printf("singly-linked list became circular...");
-				int i=0;i=1/i;
-			}
+			__failIf(*ptr == whichList, "singly-linked list became circular...");
 #endif
 		}
 		return ptr;
+	}
+	bool blockInList(MemBlock* block, MemBlock* whichList) {
+		for(MemBlock * m = freeList; m; m = m->next) {
+#ifdef MEM_LEAK_DEBUG
+			__failIf(m->next == whichList, "singly-linked list became circular...");
+#endif			
+			if(m == block) return true;
+		}
+		return false;
 	}
 #endif
 	/** create a new memory page to be managed (uses malloc) */
 	MemPage* newPage(size_t pagesize) {
 		MemPage * m = (MemPage*)malloc(pagesize);
-		if(!m) {
-			// could not allocate a page of memory
-			int i=0;i=1/i;
-		}
+		__failIf(!m, "could not allocate a page of memory");
 		m->next = 0;
 		m->size = pagesize;
 		MemBlock * memoryUnit = m->firstBlock();
@@ -173,26 +172,32 @@ struct MemManager {
 		return m;
 	}
 	/** @return a page whose size is at least 'defaultPageSize' big, but could be 'requestedAllocation' big, if that is larger. */
-	MemPage* newPageAtLeastBigEnoughFor(size_t requestedAllocation){
+	MemPage* newPageAtLeastBigEnoughFor(size_t requestedAllocation) {
 		size_t pageSize = defaultPageSize;
 		if(pageSize < requestedAllocation+sizeof(MemBlock)+sizeof(MemPage)){
 			// allocate the larger amount
 			pageSize = requestedAllocation+sizeof(MemBlock)+sizeof(MemPage);
 		}
-		return newPage(pageSize);
+		MemPage* result = newPage(pageSize);
+#ifdef VERIFY_INTEGRITY
+		if(!result) {
+			verifyIntegrity("Allocation fail");
+		}
+#endif			
+		return result;
 	}
-	static ptrdiff_t endOfPage(MemPage * page){
+	static ptrdiff_t endOfPage(MemPage * page) {
 		return ((ptrdiff_t)page)+page->size;
 	}
 	/** @return the address of the _pointer to_ the last page, not the address of the last page. Will never be NULL. */
-	MemPage** lastPage(){
+	MemPage** lastPage() {
 		MemPage** cursor = &mem;
-		while(*cursor){
+		while(*cursor) {
 			cursor = &((*cursor)->next);
 		}
 		return cursor;
 	}
-	MemPage* addPage(size_t size){
+	MemPage* addPage(size_t size) {
 		MemPage** lastP = lastPage();
 		*lastP = newPage(size);
 #ifdef MEM_LINKED_LIST
@@ -203,6 +208,7 @@ struct MemManager {
 #endif
 		return *lastP;
 	}
+	
 	MemPage* addPageAtLeastBigEnoughFor(size_t size){
 		MemPage** lastP = lastPage();
 		*lastP = newPageAtLeastBigEnoughFor(size);
@@ -217,69 +223,202 @@ struct MemManager {
 
 #ifdef MEM_LEAK_DEBUG
 #ifdef VERIFY_INTEGRITY
-	bool verifyIntegrity(const char *failMessage){
-		MemPage * current = mem;
-		if(current) {
-			size_t pages = 0;
-			size_t freeSectors = 0;
-			size_t freeBytes = 0;
-			size_t usedSectors = 0;
-			size_t usedBytes = 0;
-			ptrdiff_t firstHeaderLoc;
-			do{
-				MemBlock* block = current->firstBlock();
-				firstHeaderLoc = (ptrdiff_t)block;
-				MemBlock* endOfThisPage = (MemBlock*)endOfPage(current);
-				MemBlock * last;
-				// verify going forwards
-				do{
-					last = block;
-					if(block->signature != MEM_LEAK_DEBUG){
-						const char * errMsg;
+	bool verifyBlockIntegrity(MemBlock* block, const char * failMessage,
+		const ptrdiff_t firstHeaderLoc, MemBlock* endOfThisPage,
+		const int pages, int& usedSectors, int& usedBytes, int& freeSectors, int& freeBytes, int& missingFreeSectors) {
+		if(block->signature != MEM_LEAK_DEBUG) {
+			const char * errMsg =
 #ifdef ENVIRONMENT32
-						errMsg = "\n%s\n\nintegrity failure at page %d, header %d (%d/%d)\n\n\n";
+			"\n%s\n\nintegrity failure at page %d, header %d (%d/%d)\n\n\n";
 #else
-						errMsg = "\n%s\n\nintegrity failure at page %lu, header %lu (%lu/%lu)\n\n\n";
+			"\n%s\n\nintegrity failure at page %lu, header %lu (%lu/%lu)\n\n\n";
 #endif
-						printf(errMsg, failMessage, pages, usedSectors+freeSectors, ((ptrdiff_t)block)-firstHeaderLoc, ((ptrdiff_t)endOfThisPage)-firstHeaderLoc);
-						// TODO memviewer right here...
-//						printMem();
-//						_getch();
-						return false;
-					}
-					if(!block->isFree()){
-						usedSectors++;
-						usedBytes += block->getSize();
-					}else{
-						freeSectors++;
-						freeBytes += block->getSize();
-					}
-					block = block->nextContiguousBlock();
-				}while((ptrdiff_t)block < (ptrdiff_t)endOfThisPage);
-				block = last;
-				current = current->next;
-				pages++;
-			}while(current);
+			printf(errMsg, failMessage, pages, usedSectors+freeSectors, ((ptrdiff_t)block)-firstHeaderLoc, ((ptrdiff_t)endOfThisPage)-firstHeaderLoc);
+			return false;
 		}
+		if(!block->isFree()) {
+			usedSectors++;
+			usedBytes += block->getSize();
+		}
+		else {
+			freeSectors++;
+			freeBytes += block->getSize();
+#ifdef MEM_LINKED_LIST
+			if(!blockInList(block, freeList)) {
+				missingFree++;
+				const char * errMsg =
+#	ifdef ENVIRONMENT32
+				"\n%s\n\nintegrity failure at page %d, header %d (%d/%d): marked free but not in freelist\n\n\n";
+#	else
+				"\n%s\n\nintegrity failure at page %lu, header %lu (%lu/%lu): marked free but not in freelist\n\n\n";
+#	endif
+				printf(errMsg, failMessage, pages, usedSectors+freeSectors, ((ptrdiff_t)block)-firstHeaderLoc, ((ptrdiff_t)endOfThisPage)-firstHeaderLoc);
+				return false;
+			}
+#endif
+		}
+		return true;
+	}
+
+
+	bool verifyIntegrity(const char *failMessage) {
+		if(!mem) return true;
+		MemPage * current = mem;
+		ptrdiff_t firstHeaderLoc;
+		int pages = 0;
+		int freeSectors = 0;
+		int freeBytes = 0;
+		int usedSectors = 0;
+		int usedBytes = 0;
+		int missingFree = 0;
+		do {
+			MemBlock* block = current->firstBlock();
+			firstHeaderLoc = (ptrdiff_t)block;
+			MemBlock* endOfThisPage = (MemBlock*)endOfPage(current);
+			MemBlock * last;
+			// verify going forwards
+			do {
+				last = block;
+				if(!verifyBlockIntegrity(block, failMessage, firstHeaderLoc, endOfThisPage, 
+				pages, usedSectors, usedBytes, freeSectors, freeBytes, missingFree)) { return false; }
+				block = block->nextContiguousBlock();
+			}
+			while((ptrdiff_t)block < (ptrdiff_t)endOfThisPage);
+			block = last;
+			current = current->next;
+			pages++;
+		}
+		while(current);
 		return true;
 	}
 #endif
 #endif
+
+	void * allocate(size_t num_bytes, const char *filename, size_t line) {
+#ifdef MEM_LINKED_LIST
+		return allocate_ll(num_bytes, filename, line);
+#else
+		return allocate_easy(num_bytes, filename, line);
+#endif
+	}
+
+	void mergeWithNextFreeBlocks(MemBlock * block, size_t endOfThisPage) {
+		MemBlock * nextBlock = block->nextContiguousBlock();
+		while((size_t)nextBlock < endOfThisPage && nextBlock->isFree()) {
+#ifdef MEM_LEAK_DEBUG
+			__failIf(nextBlock->signature != MEM_LEAK_DEBUG, "memory corruption... can't traverse as expected!");
+#endif
+#ifdef MEM_CLEARED_HEADER
+			size_t* imem = (size_t*)nextBlock;
+#endif
+			nextBlock = nextBlock->nextContiguousBlock();
+#ifdef MEM_CLEARED_HEADER
+			size_t numClears = sizeof(MemBlock)/sizeof(ptrdiff_t);
+			for(int i = 0; i < numClears; ++i) {
+				imem[i]=MEM_CLEARED_HEADER;
+			}
+#endif
+		}
+		block->setSize(((size_t)nextBlock-(size_t)block)-sizeof(MemBlock));
+	}
+
+	MemBlock* splitBlock(MemBlock* block, const size_t& bytesNeeded) {
+		// mark another free block where this one will end
+		MemBlock * next = block->nextContiguousHeader(bytesNeeded);
+		next->setSize(block->getSize() - (bytesNeeded+sizeof(MemBlock)));
+		next->markFree();
+#ifdef MEM_LEAK_DEBUG
+		// 0x454C4946 = 'file' (little end), 0x454E494C = 'line' (little end)
+		next->setupDebugInfo((const char *)0x454C4946, 0x454E494C, numAllocations++);
+#endif
+		block->setSize(bytesNeeded);// mark this block exactly the size needed
+		return next;
+	}
+
+	void* markNewlyAllocatedBlock(MemBlock* block, const char * filename, const int line) {
+		void* allocatedMemory = block->allocatedMemory();
+#ifdef MEM_ALLOCATED
+		ptrdiff_t* imem = (ptrdiff_t*)allocatedMemory;
+		size_t numints = block->getSize()/sizeof(ptrdiff_t);
+		for(size_t i = 0; i < numints; ++i){
+			imem[i] = MEM_ALLOCATED;
+		}
+#endif
+#ifdef MEM_LEAK_DEBUG
+		block->setupDebugInfo(filename, line, numAllocations++);
+#endif
+#ifdef VERIFY_INTEGRITY
+		verifyIntegrity("allocation");
+#endif
+		block->markUsed();       // mark it as allocated
+		return allocatedMemory;
+	}
+
+	void markNewlyDeallocatedBlock(MemBlock* header, void* memory) {
+#ifdef MEM_CLEARED
+		ptrdiff_t* imem = (ptrdiff_t*)memory;
+		size_t numInts = header->getSize()/sizeof(ptrdiff_t);
+		for(size_t i = 0; i < numInts; ++i){
+			imem[i]=MEM_CLEARED;
+		}
+#endif
+#ifdef VERIFY_INTEGRITY
+		verifyIntegrity("deallocation");
+#endif
+		header->markFree();
+	}
+
+	void* allocate_easy(size_t num_bytes, const char *filename, size_t line) {
+#ifdef MEM_LEAK_DEBUG
+		if(num_bytes > largestRequest)   { largestRequest = num_bytes; }
+		if(num_bytes < smallRequestSize) { numSmallRequests++; }
+#endif
+		// allocated memory should be size_t aligned
+		size_t bytesNeeded = num_bytes;
+		if((bytesNeeded & ((signed)sizeof(ptrdiff_t)-1)) != 0) {
+			bytesNeeded += (signed)sizeof(ptrdiff_t) - (num_bytes % sizeof(ptrdiff_t));
+		}
+		MemPage * page = mem;  // which memory page is being searched
+		size_t endOfThisPage;  // where this memory page ends
+		MemBlock * block = 0;  // which memory block is being looked at
+		do {
+			if(!page) {
+				page = addPageAtLeastBigEnoughFor(bytesNeeded);
+				if(!page) break;
+			}
+			// if no valid block is being checked, grab the first block of this page
+			if(!block) {
+				block = page->firstBlock();      // memory will have to be traversed from the first block at the beginning of the page
+				endOfThisPage = endOfPage(page); // keep track of where the page ends
+			}
+			if(block->isFree()) {
+				mergeWithNextFreeBlocks(block, endOfThisPage);
+				if(block->getSize() > bytesNeeded+sizeof(MemBlock)) {
+					splitBlock(block, bytesNeeded);// split big blocks
+				}
+				if(block->getSize() >= bytesNeeded) {
+					return markNewlyAllocatedBlock(block, filename, line); // grab the section of memory that is being requested
+				}
+			}
+			block = block->nextContiguousBlock(); // check the next block! maybe it's free?
+			if((size_t)block >= endOfThisPage) {  // if out of bounds, go to the next page
+				page = page->next;
+				block = 0;                        // check next page from the beginning	
+			}
+		}
+		while(true); // while memory hasn't been found
+		return NULL;
+	}
+#ifdef MEM_LINKED_LIST
 	/**
 	 * will allocate memory from the memory system
 	 * @param num_bytes how many bytes are being asked for
 	 * @param filename/line where, in code, the memory is requested from, used if MEM_LEAK_DEBUG defined
 	 */
-	void * allocate(size_t num_bytes, const char *filename, size_t line) {
-MEM_DEBUG_INFRASTRUCTURE
+	void * allocate_ll(size_t num_bytes, const char *filename, size_t line) {
 #ifdef MEM_LEAK_DEBUG
-		if(num_bytes > largestRequest){
-			largestRequest = num_bytes;
-//			printf("largest request: %d\n", largestRequest);
-		}
-		if(num_bytes < smallRequestSize){
-			numSmallRequests++;
-		}
+		if(num_bytes > largestRequest)   { largestRequest = num_bytes; }
+		if(num_bytes < smallRequestSize) { numSmallRequests++; }
 #endif
 		// allocated memory should be size_t aligned
 		size_t bytesNeeded = num_bytes;
@@ -292,160 +431,45 @@ MEM_DEBUG_INFRASTRUCTURE
 		int endOfThisPage;
 		// which memory block is being searched
 		MemBlock * block = 0;
-#ifdef MEM_LINKED_LIST
 		MemBlock ** prevNextPtr = NULL;
-#endif
-MEM_DEBUG_INFRASTRUCTURE
-		do{
-			// if there is no page
-			if(!page){
-MEM_DEBUG_INFRASTRUCTURE
-				// try to make one
+		do {
+			if(!page) {
 				page = addPageAtLeastBigEnoughFor(bytesNeeded);
 				// printf("~~~~~~~ created a page that can store %lu bytes (%lu)\n", bytesNeeded, page->size);
-				// if there is _still_ no page
-MEM_DEBUG_INFRASTRUCTURE
-				if(!page){
-					// fail time.
-#ifdef VERIFY_INTEGRITY
-					verifyIntegrity("Allocation fail");
-#endif
-					return 0;
-				}
 			}
-			// if no valid block is being checked at the moment
+			// if no valid block is being checked at the moment, grab a block
 			if(!block) {
-#ifdef MEM_LINKED_LIST
 				if(freeList == NULL) {
-					// printf("~~~~~ no free blocks. Need to create a new page?");
+					// printf("~~~~~ no free blocks. Need to create a new page");
 					page = addPageAtLeastBigEnoughFor(bytesNeeded);
-					freeList = page->firstBlock();
+					MemBlock* newBlock = page->firstBlock();
+					freeList = newBlock;
 				}
 				prevNextPtr = &freeList;
 				block = freeList;
-				// if(block != NULL) {
-				// 	printf("~~~~~ got one!~~~~~~~\n");
-				// } else {
-				// 	printf("~~~~~ oh noes.~~~~~~~\n");
-				// }
-#else
-				// memory will have to be traversed from the first block at the beginning of the page
-				block = page->firstBlock();
-				// keep track of where the page ends
-				endOfThisPage = endOfPage(page);
-#endif
 			}
-#ifndef MEM_LINKED_LIST
-			// check if the current memory block is free
-			if(block->isFree()) {
-				// extended this free block as far as possible (till the block right after isn't free)
-				MemBlock * nextNode = block->nextContiguousBlock();
-				while((size_t)nextNode < endOfThisPage && nextNode->isFree()){
-#	ifdef MEM_LEAK_DEBUG
-					if(nextNode->signature != MEM_LEAK_DEBUG) {
-						// memory corruption... can't traverse as expected!
-						int i = 0; i = 1/i;
-					}
-#	endif
-#	ifdef MEM_CLEARED_HEADER
-					size_t* imem = (size_t*)nextNode;
-#	endif
-					nextNode = nextNode->nextContiguousBlock();
-#	ifdef MEM_CLEARED_HEADER
-					size_t numClears = sizeof(MemBlock)/sizeof(ptrdiff_t);
-					for(int i = 0; i < numClears; ++i) {
-						imem[i]=MEM_CLEARED_HEADER;
-					}
-#	endif
-				}
-				block->setSize(((size_t)nextNode-(size_t)block)-sizeof(MemBlock));
-#endif
-MEM_DEBUG_INFRASTRUCTURE
-				// if it has enough space to be spliced into 2 blocks
-				if(block->getSize() > bytesNeeded+sizeof(MemBlock)) {
-					// printf("~~~~~~ splitting block %lu bytes (need %lu)", block->getSize(), bytesNeeded+sizeof(MemBlock));
-					// mark another free block where this one will end
-					MemBlock * next = block->nextContiguousHeader(bytesNeeded);
-					next->setSize(block->getSize() - (bytesNeeded+sizeof(MemBlock)));
-					next->markFree();
-#ifdef MEM_LINKED_LIST
-					next->next = block->next;
-#endif
-#ifdef MEM_LEAK_DEBUG
-					next->setupDebugInfo((const char *)0x454C4946, 0x454E494C, numAllocations++);
-					//next->filename = (const char *)0x454C4946;	// little-endian 'file'
-					//next->line = 0x454E494C;			// little-endian 'line'
-#endif
-					// and make this block exactly the size needed
-					block->setSize(bytesNeeded);
-					// printf("~~~~~~ now there are 2 blocks, %lu and %lu\n", block->getSize(), next->getSize());
-#ifdef MEM_LINKED_LIST
-					// maintain free list integrity
-					block->next = next;
-#endif
-				}
-				// else if(block->getSize() == bytesNeeded+sizeof(MemBlock)) {
-				// 	printf("~~~~~~ block has exactly as much as needed! %d\n", block->getSize());
-				// } else {
-				// 	printf("~~~~~~ block needs more space. has %lu, needs %lu!\n", block->getSize(), bytesNeeded+sizeof(MemBlock));
-				// }
-MEM_DEBUG_INFRASTRUCTURE
-				// if the current block has enough space for this allocation
-				if(block->getSize() >= bytesNeeded){
-					// grab the section of memory that is being requested
-					void* allocatedMemory = block->allocatedMemory();
-MEM_DEBUG_INFRASTRUCTURE
-#ifdef MEM_ALLOCATED
-					ptrdiff_t* imem = (ptrdiff_t*)allocatedMemory;
-					size_t numints = block->getSize()/sizeof(ptrdiff_t);
-					for(size_t i = 0; i < numints; ++i){
-						imem[i] = MEM_ALLOCATED;
-					}
-MEM_DEBUG_INFRASTRUCTURE
-#endif
-#ifdef MEM_LEAK_DEBUG
-					block->setupDebugInfo(filename, line, numAllocations++);
-MEM_DEBUG_INFRASTRUCTURE
-#ifdef VERIFY_INTEGRITY
-					verifyIntegrity("allocation");
-MEM_DEBUG_INFRASTRUCTURE
-#endif
-#endif
-					// mark it as allocated
-					block->markUsed();
-MEM_DEBUG_INFRASTRUCTURE
-#ifdef MEM_LINKED_LIST
-					// remove this mem block from the free list
-					// TODO only remove the free block if it was actually used... it may not have been used because it was too small!
-					*prevNextPtr = block->next;
-					// if(freeList == NULL) {
-					// 	printf("~~~~~~~~~ OH NO. LAST FREE ITEM IS LOST.\n");
-
-					// }
-					// push this on the list
-					block->next = usedList;
-					usedList = block;
-#endif
-MEM_DEBUG_INFRASTRUCTURE
-					// return the memory!
-					return allocatedMemory;
-				}
-MEM_DEBUG_INFRASTRUCTURE
-#ifndef MEM_LINKED_LIST
+			// if it has enough space to be spliced into 2 blocks
+			if(block->getSize() > bytesNeeded+sizeof(MemBlock)) {
+				// printf("~~~~~~ splitting block %lu bytes (need %lu)", block->getSize(), bytesNeeded+sizeof(MemBlock));
+				MemBlock * next = splitBlock(block, bytesNeeded);
+				// printf("~~~~~~ now there are 2 blocks, %lu and %lu\n", block->getSize(), next->getSize());
+				block->next = next; // point at the new block
 			}
-			// if the process is still going, memory has not been found yet.
-			// check the next block!
-			block = block->nextContiguousBlock();
-			// if the "next block" in this page is out of bounds
-			if((size_t)block >= endOfThisPage) {
-				// go to the next page
-				page = page->next;
-				// start checking from the beginning
-				block = 0;
+			// else if(block->getSize() == bytesNeeded+sizeof(MemBlock)) {
+			// 	printf("~~~~~~ block has exactly as much as needed! %lu\n", block->getSize());
+			// }
+			// else {
+			// 	printf("~~~~~~ block needs more space. has %lu, needs %lu!\n", block->getSize(), bytesNeeded+sizeof(MemBlock));
+			// }
+			// if the current block has enough space for this allocation
+			if(block->getSize() >= bytesNeeded) {
+				void* allocatedMemory = markNewlyAllocatedBlock(block, filename, line); // grab the section of memory that is being requested
+				*prevNextPtr = block->next; // remove block from the free list. possibly sets freelist to null.
+				block->next = usedList; usedList = block; // push block on to the used list
+				return allocatedMemory;
 			}
-#else
 			// if there are no more free blocks
-			if(!block->next){
+			if(!block->next) {
 				// add another free page, which will append a free block to this free list
 				addPageAtLeastBigEnoughFor(bytesNeeded);
 			}
@@ -453,30 +477,16 @@ MEM_DEBUG_INFRASTRUCTURE
 			prevNextPtr = &block->next;
 			// the next memory block is now the current memory block
 			block = block->next;
-#endif
-MEM_DEBUG_INFRASTRUCTURE
-		} while(true);	// while memory hasn't been found
-MEM_DEBUG_INFRASTRUCTURE
+		}
+		while(true);	// while memory hasn't been found
 		return 0;	// should never return here.
 	}
+#endif
 
-	void deallocate(void * memory){
+	void deallocate(void * memory) {
 		MemBlock * header = MemBlock::blockForAllocatedMemory(memory);//(MemBlock*)(((ptrdiff_t)memory)-sizeof(MemBlock));
-		if(header->isFree())
-		{
-			int i=0;i= 1/i;// if this is happening, you are double-deleting memory...
-		}
-#ifdef MEM_CLEARED
-		ptrdiff_t* imem = (ptrdiff_t*)memory;
-		size_t numInts = header->getSize()/sizeof(ptrdiff_t);
-		for(size_t i = 0; i < numInts; ++i){
-			imem[i]=MEM_CLEARED;
-		}
-#endif
-#ifdef VERIFY_INTEGRITY
-		verifyIntegrity("deallocation");
-#endif
-		header->markFree();
+		__failIf(header->isFree(), "double-deleting memory...");
+		markNewlyDeallocatedBlock(header, memory);
 #ifdef MEM_LINKED_LIST
 		// used memory is not being listed. only free memory is important.
 		// if it becomes important to keep track of used memory, the MemBlock should be a double linked list.
@@ -529,7 +539,8 @@ MEM_DEBUG_INFRASTRUCTURE
 			if(merged){
 				// if it was merged earlier, just reference the next guy.
 				*ptrToNextBlock = nextContBlock->next;
-			}else{
+			}
+			else {
 				// if it wasn't merged, merge it into the list now
 				*ptrToNextBlock = originBlock;
 				originBlock->next = nextContBlock->next;
@@ -548,82 +559,99 @@ MEM_DEBUG_INFRASTRUCTURE
 #endif
 	}
 
-	void reportMemory(bool verbose = false) {
-		#ifdef MEM_LEAK_DEBUG
-		verbose = true;
-		#endif
-		MemPage * current = mem;
-		if(current) {
-			int pages = 0;
-			int freeSectors = 0;
-			int freeBytes = 0;
-			int usedSectors = 0;
-			int usedBytes = 0;
-			do{
-				MemBlock* block = current->firstBlock();
-				MemBlock* endOfThisPage = (MemBlock*)endOfPage(current);
-				printf("page %d [0x%08lx -> 0x%08lx) (%lu bytes)\n", pages, (long)current, (long)endOfThisPage, ((size_t)endOfThisPage-(size_t)current));
-				do{
-					if(!block->isFree()) {
-						if(verbose) {
-							printf("#%d: %d bytes from %s:%d\n",
-								(int)block->allocID, (int)block->getSize(), block->filename, (int)block->line);
-						}
-						usedSectors++;
-						usedBytes += block->getSize();
-					}else{
-						if(verbose) {
-							printf("%d bytes free\n", (int)block->getSize());
-						}
-						freeSectors++;
-						freeBytes += block->getSize();
-					}
-					block = block->nextContiguousBlock();
-				}while((ptrdiff_t)block < (ptrdiff_t)endOfThisPage);
-				current = current->next;
-				pages++;
-			}while(current);
-			printf("%d pages (%d bytes of overhead)\n", (int)pages, (int)(pages*sizeof(MemPage)));
-			printf("      blocks  useableBytes total\n");
-			int sizeOfBlockHeader = sizeof(MemBlock);
-			printf("free : %6d %12d %d\n", freeSectors, freeBytes, freeSectors*sizeOfBlockHeader+freeBytes);
-			printf("used : %6d %12d %d\n", usedSectors, usedBytes, usedSectors*sizeOfBlockHeader+usedBytes);
-			printf("largest request: %d\n", largestRequest);
-			printf("%d requests less than %d bytes\n", numSmallRequests, smallRequestSize);
-		}else{
-			printf("memory clean\n");
+	void reportBlock(MemBlock* block, bool verbose, int& usedSectors, int& usedBytes, int& freeSectors, int& freeBytes) {
+		if(!block->isFree()) {
+			if(verbose) {
+				printf("#%d: %d bytes from %s:%d\n",
+				(int)block->allocID, (int)block->getSize(), block->filename, (int)block->line);
+			}
+			usedSectors++;
+			usedBytes += block->getSize();
+		}
+		else {
+			if(verbose) {
+				printf("%d bytes free\n", (int)block->getSize());
+			}
+			freeSectors++;
+			freeBytes += block->getSize();
 		}
 	}
 
-	int release(){
+	void reportMemory(bool verbose = false) {
+#ifdef MEM_LEAK_DEBUG
+		verbose = true;
+#endif
+		if(!mem) {
+			printf("memory clean\n");
+			return;
+		}
+		MemPage * current = mem;
+		int pages = 0;
+		int freeSectors = 0;
+		int freeBytes = 0;
+		int usedSectors = 0;
+		int usedBytes = 0;
+		do {
+			MemBlock* block = current->firstBlock();
+			MemBlock* endOfThisPage = (MemBlock*)endOfPage(current);
+			printf("page %d [0x%08lx -> 0x%08lx) (%lu bytes)\n", pages, (long)current, (long)endOfThisPage, ((size_t)endOfThisPage-(size_t)current));
+			do {
+				reportBlock(block, verbose, usedSectors, usedBytes, freeSectors, freeBytes);
+				block = block->nextContiguousBlock();
+			}
+			while((ptrdiff_t)block < (ptrdiff_t)endOfThisPage);
+			current = current->next;
+			pages++;
+		}
+		while(current);
+		printf("%d pages (%d bytes of overhead)\n", (int)pages, (int)(pages*sizeof(MemPage)));
+		printf("      blocks  useableBytes total\n");
+		int sizeOfBlockHeader = sizeof(MemBlock);
+		printf("free : %6d %12d %d\n", freeSectors, freeBytes, freeSectors*sizeOfBlockHeader+freeBytes);
+		printf("used : %6d %12d %d\n", usedSectors, usedBytes, usedSectors*sizeOfBlockHeader+usedBytes);
+#ifdef MEM_LEAK_DEBUG
+		printf("largest request: %d\n", largestRequest);
+		printf("%d requests less than %d bytes\n", numSmallRequests, smallRequestSize);
+#endif
+	}
+
+	int reportLeakingBlocks(MemPage* mem) {
+		int leaks=0;
+		MemBlock* block = mem->firstBlock();
+		MemBlock* endOfThisPage = (MemBlock*)endOfPage(mem);
+//		headersTraversed=0;
+		do {
+			if(!block->isFree()) {
+				printf("memory leak, %d bytes! %s:%d\n",
+				(int)block->getSize(), block->filename, (int)block->line);
+				leaks++;
+			}
+			block = block->nextContiguousBlock();
+//			headersTraversed++;
+		}
+		while((ptrdiff_t)block < (ptrdiff_t)endOfThisPage);
+		return leaks;
+	}
+
+	int release() {
 #ifdef MEM_LEAK_DEBUG
 		int leaks = 0;
 #endif
-		if(mem){
+		if(mem) {
 			MemPage * next;
 //			int pagesTraversed=0, headersTraversed=0;
-			do{
+			do {
 #ifdef MEM_LEAK_DEBUG
-				MemBlock* block = mem->firstBlock();
-				MemBlock* endOfThisPage = (MemBlock*)endOfPage(mem);
-//				headersTraversed=0;
-				do{
-					if(!block->isFree()){
-						printf("memory leak, %d bytes! %s:%d\n",
-							(int)block->getSize(), block->filename, (int)block->line);
-						leaks++;
-					}
-					block = block->nextContiguousBlock();
-//					headersTraversed++;
-				}while((ptrdiff_t)block < (ptrdiff_t)endOfThisPage);
+				leaks+= reportLeakingBlocks(mem);
 #endif
 				next = mem->next;
 				free(mem);
 				mem = next;
 //				pagesTraversed++;
-			}while(mem);
+			}
+			while(mem);
 #ifdef MEM_LEAK_DEBUG
-			if(leaks){
+			if(leaks) {
 				printf("found %d memory leaks!\n", leaks);
 			}
 #endif
@@ -635,10 +663,10 @@ MEM_DEBUG_INFRASTRUCTURE
 		return 0;
 #endif
 	}
-	~MemManager(){release();}
+	~MemManager() { release(); }
 };
 
-MemManager memory;
+static MemManager s_memory;
 
 static ptrdiff_t g_stackbegin, g_stackend;
 /**
@@ -661,9 +689,8 @@ size_t MEM::validBytesAt(void * ptr)
 		return end-thisone;
 	}
 	// iterate through all memory pages, checking if this pointer is in paged memory
-	MemPage * cursor = memory.mem;
-	while(cursor)
-	{
+	MemPage * cursor = s_memory.mem;
+	while(cursor) {
 		start = (ptrdiff_t)cursor;
 		end = start+cursor->size;
 		if(thisone >= start && thisone < end){
@@ -674,13 +701,12 @@ size_t MEM::validBytesAt(void * ptr)
 	return 0;
 }
 
-
-int MEM::RELEASE_MEMORY(){
-	return memory.release();
+int MEM::RELEASE_MEMORY() {
+	return s_memory.release();
 }
 
-void MEM::REPORT_MEMORY(bool verbose){
-	memory.reportMemory(verbose);
+void MEM::REPORT_MEMORY(bool verbose) {
+	s_memory.reportMemory(verbose);
 }
 
 /** overrides where the source of memory allocation should be documented as */
@@ -696,9 +722,7 @@ void* operator new( size_t num_bytes, const char *filename, int line) __NEWTHROW
 	__NEWMEM_FILE_NAME=0;
 	__NEWMEM_FILE_LINE=0;
 //	printf("alloc %10d   %s:%d\n", num_bytes, filename, line);
-MEM_DEBUG_INFRASTRUCTURE
-	void * resultMemory = memory.allocate(num_bytes, filename, line);
-MEM_DEBUG_INFRASTRUCTURE
+	void * resultMemory = s_memory.allocate(num_bytes, filename, line);
 	return resultMemory;
 }
 
@@ -709,7 +733,7 @@ void* operator new[]( size_t num_bytes, const char *filename, int line) __NEWTHR
 
 void operator delete(void* data, const char *filename, int line) throw()
 {
-	return memory.deallocate(data);
+	return s_memory.deallocate(data);
 }
 void operator delete[](void* data, const char *filename, int line) throw()
 {
@@ -718,7 +742,7 @@ void operator delete[](void* data, const char *filename, int line) throw()
 
 void operator delete(void* data) throw()
 {
-	return memory.deallocate(data);
+	return s_memory.deallocate(data);
 }
 void operator delete[](void* data) throw()
 {

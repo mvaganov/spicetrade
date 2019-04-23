@@ -300,8 +300,8 @@ void CLI::BufferManager::setColor(int foreground, int background)
 {
 	m_fcolor = foreground;
 	m_bcolor = background;
-	if(!m_softwareCLIdata)
-		platform_setColor(foreground, background);
+	// if(!m_softwareCLIdata)
+	platform_setColor(foreground, background);
 }
 
 void CLI::BufferManager::refresh_stdout()
@@ -714,22 +714,6 @@ timeval g_tv = {0,0};
 /** input check during kbhit */
 fd_set g_fds;
 
-// bool platform_kbhit()
-// {
-// 	// check the hardware input stream if there is data waiting
-// 	FD_SET(STDIN_FILENO, &g_fds);
-// 	int result = ::select(STDIN_FILENO+1, &g_fds, NULL, NULL, &g_tv);
-// 	// specifically, check for data to be read
-// 	return result && (FD_ISSET(0, &g_fds));
-// }
-
-// int platform_getchar()
-// {
-// 	int buffer;
-// 	::read(STDIN_FILENO, (char *)&buffer, sizeof(buffer));
-// 	return buffer;
-// }
-
 /** @return true if there is a key press waiting to be read */
 bool CLI::kbhit()
 {
@@ -840,27 +824,6 @@ void CLI::refresh()
 		g_CLI->refresh_stdout();
 	}
 	fflush(stdout); // force stdout refresh
-}
-
-/** move the cursor to the given location in the console */
-void platform_move(int row, int col)
-{
-	if(row < 0 || col < 0 || row >= CLI::getHeight() || col >= CLI::getWidth())return;
-	::printf("\033[%d;%df", row+1, col+1);	// move cursor, without ncurses
-}
-
-void platform_setColor(int foreground, int background)
-{
-	// colorRGB and colorGRAY usable for TTY (unix/linux) expanded console color
-	if(foreground >= 0)
-		::printf("\033[38;5;%dm", foreground);
-	else
-		::printf("\033[39m");// default foreground color
-	if(background >= 0){
-		::printf("\033[48;5;%dm", background);
-	}else{
-		::printf("\033[49m");// default background color
-	}
 }
 
 // R, G, and B values must be between 0 and 5 (inclusive)
