@@ -31,8 +31,10 @@ void* operator new[](size_t num_bytes) __NEWTHROW {
 	return operator new(num_bytes, __FILE__, __LINE__);
 }
 
-#define __failIf(failcondition, message)	if(failcondition) {\
-		printf("%s\nfail if %s\n", message, #failcondition); int i=0;i=1/i; }
+#define __failIf(failcondition, message, ...)	if(failcondition) {\
+		printf("fail if %s\n", #failcondition);\
+		printf(message, ##__VA_ARGS__);\
+		int i=0;i=1/i; }
 
 /** ptrTo could be used for the same purpose, but this does it with less pointer math! */
 template<typename T>
@@ -59,7 +61,7 @@ T ** linkedList_findPtrTo(T* &whichListToSearch, T* whichBlock) {
 			ptr = NULL;
 			break;
 		}
-		ptr = &((*ptr)->next); // point at the address of the next block
+		ptr = &((*ptr)->next); // point at the pointer-to the next block
 #ifdef VERIFY_INTEGRITY
 		__failIf((loopguard++ > (1 << 10)), "list recursion looking for pointer");
 #endif
@@ -73,6 +75,7 @@ void linkedList_print(T* headPtr) {
 	for(T* m=headPtr;m;m=m->next) { printf("%zx ", (size_t)m); fflush(stdout); }
 	printf("]\n");
 }
+
 template<typename T>
 int linkedList_size(T* headPtr) {
 	int count = 0; for(T* m=headPtr;m;m=m->next){++count;}
@@ -84,6 +87,7 @@ bool linkedList_remove(T* &headPtr, T* b) {
 	if(ptr && *ptr == b) {
 		// printf("~~~~ removed from list 0x%016zx, 0x%016zx, 0x%016zx\n", (size_t)b, (size_t)ptr, (size_t)*ptr);
 		(*ptr) = b->next;
+		b->next = NULL;
 		return true;
 	}
 	return false;
@@ -144,6 +148,12 @@ public:
 		return (MemBlock*)(((ptrdiff_t)memory)-sizeof(MemBlock));
 	}
 };
+
+void linkedList_print(MemBlock* headPtr) {
+	printf("[ "); fflush(stdout);
+	for(MemBlock* m=headPtr;m;m=m->next) { printf("%zx(%zi) ", (size_t)m, m->getSize()); fflush(stdout); }
+	printf("]\n");
+}
 
 int MEM::getAllocatedHere(void * a_memory) {
 	MemBlock * mb = MemBlock::blockForAllocatedMemory(a_memory);
@@ -355,53 +365,53 @@ struct MemManager {
 		MemBlock * nextBlock = block->nextContiguousBlock();
 		while((size_t)nextBlock < endOfThisPage && isFree(nextBlock)) {
 			linkedList_remove(freeList, nextBlock);
-#ifdef MEM_LEAK_DEBUG
+			#ifdef MEM_LEAK_DEBUG
 			__failIf(nextBlock->signature != MEM_LEAK_DEBUG, "memory corruption... can't traverse as expected!");
-#endif
-#ifdef MEM_CLEARED_HEADER
+			#endif
+			#ifdef MEM_CLEARED_HEADER
 			size_t* imem = (size_t*)nextBlock;
-#endif
+			#endif
 			nextBlock = nextBlock->nextContiguousBlock();
-#ifdef MEM_CLEARED_HEADER
+			#ifdef MEM_CLEARED_HEADER
 			size_t numClears = sizeof(MemBlock)/sizeof(ptrdiff_t);
 			for(int i = 0; i < numClears; ++i) {
 				imem[i]=MEM_CLEARED_HEADER;
 			}
-#endif
+			#endif
 		}
 		block->setSize(((size_t)nextBlock-(size_t)block)-sizeof(MemBlock));
 	}
 
 	MemBlock* splitBlock(MemBlock* block, const size_t& bytesNeeded) {
-		printf("~~~~ splitting block %zx\n", (size_t)block);
+		// printf("~~~~ splitting block %zx\n", (size_t)block);
 		// mark another free block where this one will end
 		MemBlock * next = block->nextContiguousHeader(bytesNeeded);
 		next->setSize(block->getSize() - (bytesNeeded+sizeof(MemBlock)));
 //		setFree(next);
 		linkedList_push(freeList, next);
-		printf("~~~~ pushed next %zx\n", (size_t)next);
-#ifdef MEM_LEAK_DEBUG
+		// printf("~~~~ pushed next %zx\n", (size_t)next);
+		#ifdef MEM_LEAK_DEBUG
 		next->setupDebugInfo("<split>", 0, numAllocations);
-#endif
+		#endif
 		block->setSize(bytesNeeded); // mark this block exactly the size needed
 		return next;
 	}
 
 	void* initNewAllocation(MemBlock* block, const char * filename, const int line) {
 		void* allocatedMemory = block->allocatedMemory();
-#ifdef MEM_ALLOCATED
+		#ifdef MEM_ALLOCATED
 		ptrdiff_t* imem = (ptrdiff_t*)allocatedMemory;
 		size_t numints = block->getSize()/sizeof(ptrdiff_t);
 		for(size_t i = 0; i < numints; ++i) {
 			imem[i] = MEM_ALLOCATED;
 		}
-#endif
-#ifdef MEM_LEAK_DEBUG
+		#endif
+		#ifdef MEM_LEAK_DEBUG
 		block->setupDebugInfo(filename, line, numAllocations++);
-#endif
-#ifdef VERIFY_INTEGRITY
+		#endif
+		#ifdef VERIFY_INTEGRITY
 		verifyIntegrity("allocation");
-#endif
+		#endif
 		return allocatedMemory;
 	}
 
@@ -413,11 +423,11 @@ struct MemManager {
 			imem[i]=MEM_CLEARED;
 		}
 		#endif
-#ifdef VERIFY_INTEGRITY
+		#ifdef VERIFY_INTEGRITY
 		verifyIntegrity("deallocation");
-#endif
+		#endif
 	}
-//#ifndef MEM_LINKED_LIST
+
 	void* allocate_easy(size_t bytesNeeded, const char *filename, size_t line) {
 		MemPage * page = mem;  // which memory page is being searched
 		size_t endOfThisPage;  // where this memory page ends
@@ -451,7 +461,7 @@ struct MemManager {
 		while(true); // while memory hasn't been found
 		return NULL;
 	}
-//#else
+
 	void * allocate_ll(size_t bytesNeeded, const char *filename, size_t line) {
 		MemBlock * block = freeList;
 		do {
@@ -480,129 +490,76 @@ struct MemManager {
 		return NULL;	// the loop will break if we can't malloc another
 	}
 //#endif
+
 	static MemBlock ** findPtrToContiguousBlockBefore(MemBlock* &whichListToSearch, MemBlock* whichBlock) {
 		MemBlock ** ptr = &whichListToSearch;
-		while(ptr && (*ptr)->nextContiguousBlock() != whichBlock) {
-			ptr = &((*ptr)->next); // point at the address of the next block
+		while(ptr) { // don't search if there is no list
+			if(!(*ptr)) { return NULL; } // don't search if the next node is NULL
+			if((*ptr)->nextContiguousBlock() == whichBlock) { break; } // stop if the next node is what we're looking for, the one right-before whichBlock in contiguous memory
+			ptr = &((*ptr)->next); // point at the pointer-to the next block
 		}
 		return ptr; // will return NULL if whichBlock is not in the list whichListToSearch
 	}
 	static MemBlock ** findPtrToContiguousBlockAfter(MemBlock* &whichListToSearch, MemBlock* whichBlock) {
 		MemBlock ** ptr = &whichListToSearch;
 		MemBlock * nextone = whichBlock->nextContiguousBlock();
-		while(ptr && (*ptr) != nextone) {
-			ptr = &((*ptr)->next); // point at the address of the next block
+		while(ptr) {
+			if(!(*ptr)) { return NULL; }
+			if((*ptr) == nextone) { break; }
+			ptr = &((*ptr)->next); // point at the pointer-to the next block
 		}
 		return ptr; // will return NULL if whichBlock is not in the list whichListToSearch
+	}
+
+	void blockEnvelopesNext(MemBlock * b, MemBlock * endBlock) {
+		size_t endOfNext = (size_t)(endBlock->nextContiguousBlock());
+		size_t startOfBlockData = (size_t)(b->allocatedMemory());
+		b->setSize(endOfNext - startOfBlockData);
 	}
 
 	void deallocate(void * memory) {
 		MemBlock * header = MemBlock::blockForAllocatedMemory(memory);//(MemBlock*)(((ptrdiff_t)memory)-sizeof(MemBlock));
 #ifdef MEM_LEAK_DEBUG
-		__failIf(!linkedList_contains(usedList, header), "deleting unmanaged memory...");
+		bool isUsed = linkedList_contains(usedList, header);
+		// printf("free pre delete: "); linkedList_print(freeList);
+		// printf("used pre delete: "); linkedList_print(usedList);
+		if(!isUsed) return;
+		__failIf(!isUsed, "deleting unmanaged memory: 0x%016zx\n", (size_t)header);
 #endif
-		__failIf(isFree(header), "double-deleting memory...");
+		__failIf(isFree(header), "double-deleting memory: 0x%016zx\n", (size_t)header);
 		// printf("~~deallocate");
-		linkedList_remove(usedList, b);
-		linkedList_push(freeList, b);
-		// setFree(header);
-		wipeOldAllocation(header, memory);
-#ifdef MEM_LINKED_LIST
-		MemBlock** ptr = linkedList_findPtrTo(freeList, header);
-		if(isFree(header) && ptr) {
-			printf("freed block is also in the free freelist 0x%08zx.\n", (size_t)*ptr);
-		}
-
-		// bad solution - push the new free node to the front
-		// header->next = NULL;
-		// MemBlock** ptrToLast = linkedList_findPtrTo(freeList, NULL);
-		// *ptrToLast = header;
-		header->next = freeList;
-		freeList = header;
-
-		// used memory is not being listed. only free memory is important.
-		//// remove this mem block from it's current list (not managing used memory)
-		//{
-		//	MemBlock ** p = &freeList;
-		//	while((*p)->next != header) {
-		//		p = &(p->next);
-		//	}
-		//	*p = header->next;
-		//	header->next = 0;
-		//}
-// all of this code is used to merge a singly-linked list of memory blocks when they are contiguous... sheesh.
-
-
-
+		linkedList_remove(usedList, header);
 
 		// find the pointer-pointing-at-BEF (right before 'header' in memory)
-//		MemBlock ** ptrToBEF = findPtrToContiguousBlockBefore(freeList, header);
+		MemBlock ** ptrToBEF = findPtrToContiguousBlockBefore(freeList, header);
 		// find the pointer-pointing-at-AFT (right after 'header' in memory)
-//		MemBlock ** ptrToAFT = findPtrToContiguousBlockAfter(freeList, header);
-		// if there is a BEF and no AFT
-			// extend BEF to cover 'header'
-		// if there is an AFT and no BEF
-			// have the pointer-pointing-at-AFT point at 'header'
-			// extend 'header' to cover AFT
-		// if there is an AFT and a BEF (3 way merge)
+		MemBlock ** ptrToAFT = findPtrToContiguousBlockAfter(freeList, header);
+		// if there is an AFT and no BEF. [used] [deleting] [free]
+		if(!ptrToBEF && ptrToAFT) {
+			// printf("~~~ need to extend forward. %zx, %li bytes into %zx, %li bytes\n",
+			// 	(size_t)header, header->getSize(), (size_t)(*ptrToAFT), (*ptrToAFT)->getSize());
+			blockEnvelopesNext(header, *ptrToAFT); // envelop the next block
+			header->next = (*ptrToAFT)->next;     // keep pointing where the next block pointed
+			(*ptrToAFT) = header;                // replace the enveloped block in the free list
+		}
+		// if there is a BEF and no AFT. [free] [deleting] [used]
+		else if(ptrToBEF && !ptrToAFT) {
+			// printf("~~~ need to have previous node extend forward\n");
+			blockEnvelopesNext(*ptrToBEF, header); // have the previous block envelop this one
+		}
+		// if there is an AFT and a BEF (3 way merge). [free] [deleting] [free]
+		else if(ptrToBEF && ptrToAFT) {
+			// printf("~~~ need to remove last one in series and extend forward across it\n");
+			blockEnvelopesNext(*ptrToBEF, *ptrToAFT); // envelop across both free blocks
 			// take pointer-pointing-at-AFT, and point it to AFT's next (essentially taking AFT out of the list)
-			// merge BEF to cover both 'header' and AFT
-
-
-	// 	bool merged = false;
-	// 	// block after what is being deallocated. it *may not be a block*...
-	// 	MemBlock * nextContBlock = header->nextContiguousBlock();
-	// 	MemBlock ** ptrToNextBlock = 0;
-	// 	MemBlock * p = freeList; // traverse the entire free list
-	// 	// (we'll be inserting and removing, so keep a back-reference-reference)
-	// 	MemBlock ** ptrToP = &freeList;
-	// 	MemBlock * originBlock = header;  // which block will back-merge at the end
-	// 	while(p) {
-	// 		// if the currently found mem block header is the expected next block
-	// 		if(p == nextContBlock) {
-	// 			// then the next block is a free block, and it can be merged (done at the end)
-	// 			ptrToNextBlock = ptrToP;
-	// 		}
-	// 		// if this current block should merge with the currently free-ing block
-	// 		if(!merged){
-	// 			MemBlock * tempNextContBlock = p->nextContiguousBlock();
-	// 			if(tempNextContBlock == header){
-	// //				// put this block's next as the newly free'd block's next
-	// //				header->next = p->next;
-	// 				// extend this block over the newly free'd block
-	// 				p->setSize(p->getSize()+sizeof(MemBlock)+header->getSize());
-	// 				originBlock = p;
-	// 				merged = true;
-	// 			}
-	// 		}
-	// 		// go to the next free block
-	// 		ptrToP = &p->next;
-	// 		p = p->next;
-	// 	}
-	// 	// if this memory can merge with the next block
-	// 	if(ptrToNextBlock){
-	// 		// remove the next mem block from the old list
-	// 		if(merged){
-	// 			// if it was merged earlier, just reference the next guy.
-	// 			*ptrToNextBlock = nextContBlock->next;
-	// 		}
-	// 		else {
-	// 			// if it wasn't merged, merge it into the list now
-	// 			*ptrToNextBlock = originBlock;
-	// 			originBlock->next = nextContBlock->next;
-	// 		}
-	// 		// forward merge the next mem block from the previous mem block
-	// 		originBlock->setSize(originBlock->getSize()+sizeof(MemBlock)+nextContBlock->getSize());
-	// 		merged = true;
-	// 	}
-	// 	// if this mem block could not be merged into an existing mem block
-	// 	if(!merged){
-	// 		// push it on the list.
-	// 		header->next = freeList;
-	// 		freeList = header;	// push it real good.
-	// 		// if(freeList == NULL) { printf("~~~~~~~~~ THIS SHOULD BE IMPOSSIBLE!\n"); }
-	// 	}
-#endif
+			(*ptrToAFT) = (*ptrToAFT)->next;
+		}
+		else {
+			linkedList_push(freeList, header);
+			wipeOldAllocation(header, memory);
+		}
+		// printf("used postdelete: "); linkedList_print(usedList);
+		// printf("free postdelete: "); linkedList_print(freeList);
 	}
 
 	void reportBlock(MemBlock* block, bool verbose, int& usedSectors, int& usedBytes, int& freeSectors, int& freeBytes) {
@@ -665,7 +622,6 @@ struct MemManager {
 		int leaks=0;
 		MemBlock* block = mem->firstBlock();
 		MemBlock* endOfThisPage = (MemBlock*)endOfPage(mem);
-//		headersTraversed=0;
 		do {
 			if(!isFree(block)) {
 				printf("memory leak, %d bytes! %s:%d\n",
@@ -673,7 +629,6 @@ struct MemManager {
 				leaks++;
 			}
 			block = block->nextContiguousBlock();
-//			headersTraversed++;
 		}
 		while((ptrdiff_t)block < (ptrdiff_t)endOfThisPage);
 		return leaks;
@@ -685,7 +640,6 @@ struct MemManager {
 #endif
 		if(mem) {
 			MemPage * next;
-//			int pagesTraversed=0, headersTraversed=0;
 			do {
 #ifdef MEM_LEAK_DEBUG
 				leaks+= reportLeakingBlocks(mem);
@@ -693,7 +647,6 @@ struct MemManager {
 				next = mem->next;
 				free(mem);
 				mem = next;
-//				pagesTraversed++;
 			}
 			while(mem);
 #ifdef MEM_LEAK_DEBUG
