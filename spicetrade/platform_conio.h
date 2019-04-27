@@ -15,6 +15,8 @@ long platform_kbhit ();
 long platform_getchar ();
 /** set the color of the command line cursor. linux gets more colors than windows. ignore negative values (use current color) */
 void platform_setColor (long foreground, long background);
+int platform_getFColor();
+int platform_getBColor();
 int platform_defaultFColor();
 int platform_defaultBColor();
 /** converts the given 0-255 RGB value to an approximate in the command-line console */
@@ -145,6 +147,13 @@ inline void __platform_init () {
 	}
 }
 
+static int* __cached_platform_setColor() {
+	static int cache[2] = {-1, -1};
+	return cache;
+}
+inline int platform_getFColor() { return __cached_platform_setColor()[0]; }
+inline int platform_getBColor() { return __cached_platform_setColor()[1]; }
+
 inline void platform_move (long row, long col) {
 	if (col < 0)
 		col = 0;
@@ -179,6 +188,13 @@ inline long platform_getchar () {
 
 inline void platform_setColor (long foreground, long background) {
 	__platform_init ();
+	int* cache = __cached_platform_setColor();
+	// don't bother changing colors if no actual change needs to happen.
+	if (foreground == cache[0] &&  background == cache[1]) {
+		return;
+	}
+	cache[0] = foreground;
+	cache[1] = background;
 	if (foreground < 0) {
 		foreground = (*__oldAttributes ()) & 0xf;
 	}
@@ -262,6 +278,13 @@ inline long* __initialized () {
 	return &initted;
 }
 
+static int* __cached_platform_setColor() {
+	static int cache[2] = {-1, -1};
+	return cache;
+}
+inline int platform_getFColor() { return __cached_platform_setColor()[0]; }
+inline int platform_getBColor() { return __cached_platform_setColor()[1]; }
+
 /** Linux keeps track of time this way. clock() returns CPU cycles, not time. */
 inline timeval* __g_startTime () {
 	static timeval g_startTime = { 0, 0 };
@@ -322,32 +345,39 @@ inline long platform_kbhit () {
 	return result;
 }
 
+inline void __readInputBytes(char* buffer, int maxCount) {
+	for(int i = 0; i < maxCount; ++i) {
+		read (STDIN_FILENO, buffer+i, 1);
+		if(!__platform_kbhitCheck ()) {
+			break;
+		}
+	}
+}
+
+inline void __platform_getchar_read_escape_sequence(long& buffer) {
+	switch (buffer) {
+	case '\033': // if it is an escape sequence, read some more...
+		read (STDIN_FILENO, ((char*)&buffer) + 1, 1);
+		switch (((char*)&buffer)[1]) {
+		case '[': // possibly arrow keys
+			__readInputBytes(((char*)&buffer) + 1, 3);
+			break;
+		case 0x4f: // possible F1,F2,F3,F4 key
+			read (STDIN_FILENO, ((char*)&buffer) + 2, 1);
+			break;
+		}
+		break;
+	}
+}
+
 inline long platform_getchar () {
 	long buffer = -1;
 	__platform_doConsoleInputMode (); // go into single-character-not-printed mode
 	if (__platform_kbhitCheck ()) {
 		buffer = 0;
 		read (STDIN_FILENO, (char*)&buffer, 1); // read only one byte
-		if(__platform_kbhitCheck ()) {
-			switch (buffer) {
-			case '\033': // if it is an escape sequence, read some more...
-				read (STDIN_FILENO, ((char*)&buffer) + 1, 1);
-				switch (((char*)&buffer)[1]) {
-				case '[': // possibly arrow keys
-					read (STDIN_FILENO, ((char*)&buffer) + 1, 1); // overwrite the '['
-					if(__platform_kbhitCheck ()) { // possible F5 key
-						read (STDIN_FILENO, ((char*)&buffer) + 2, 1);
-						if(__platform_kbhitCheck ()) { // possible F5 key
-							read (STDIN_FILENO, ((char*)&buffer) + 3, 1);
-						}
-					}
-					break;
-				case 0x4f: // possible F1,F2,F3,F4 key
-					read (STDIN_FILENO, ((char*)&buffer) + 2, 1);
-					break;
-				}
-				break;
-			}
+		if(__platform_kbhitCheck ()) {          // but if there are more bytes to read...
+			__platform_getchar_read_escape_sequence(buffer);
 		}
 	}
 	__platform_undoConsoleInputMode (); // revert to regular input mode, so scanf/std::cin will work
@@ -355,10 +385,8 @@ inline long platform_getchar () {
 }
 
 inline void platform_move (long row, long col) {
-	if (col < 0)
-		col = 0;
-	if (row < 0)
-		row = 0;
+	if (col < 0) { col = 0; }
+	if (row < 0) { row = 0; }
 	__platform__init ();
 	fflush (stdout);
 	printf ("\033[%d;%df", (int)row + 1, (int)col + 1); // move cursor, using TTY codes (without ncurses)
@@ -368,35 +396,31 @@ inline void platform_move (long row, long col) {
 inline void platform_setColor (long foreground, long background) {
 	static int cached_bg = -1, cached_fg = -1;
 	__platform__init ();
+	int* cache = __cached_platform_setColor();
 	// don't bother running the TTY commands if no actual change needs to happen.
-	if (foreground == cached_fg && background == cached_bg) {
+	if (foreground == cache[0] &&  background == cache[1]) {
 		return;
 	}
-	cached_fg = foreground;
-	cached_bg = background;
+	cache[0] = foreground;
+	cache[1] = background;
 	fflush (stdout);
 	// colorRGB and colorGRAY usable for TTY (unix/linux) expanded console color
-	if (foreground >= 0)
-		printf ("\033[38;5;%dm", (int)foreground);
-	else
-		printf ("\033[39m"); // default foreground color
-	if (background >= 0)
-		printf ("\033[48;5;%dm", (int)background);
-	else
-		printf ("\033[49m"); // default background color
+	if (foreground >= 0) { printf ("\033[38;5;%dm", (int)foreground); }
+	else                 {  printf ("\033[39m"); } // default foreground color
+	if (background >= 0) { printf ("\033[48;5;%dm", (int)background); }
+	else                 { printf ("\033[49m"); } // default background color
 	fflush (stdout);
 }
 
-// TODO create a function with static variables to store these
 inline int platform_defaultFColor() { return -1; }
 inline int platform_defaultBColor() { return -1; }
 
 inline void platform_sleep (long a_ms) {
-	//	long seconds = a_ms / 1000;
 	__platform__init ();
-	//	a_ms -= seconds * 1000;
-	//	timespec time = { seconds, a_ms * 1000000 }; // 1 millisecond = 1,000,000 Nanoseconds
-	//	nanosleep(&time, NULL);
+	// long seconds = a_ms / 1000;
+	// a_ms -= seconds * 1000;
+	// timespec time = { seconds, a_ms * 1000000 }; // 1 millisecond = 1,000,000 Nanoseconds
+	// nanosleep(&time, NULL);
 	usleep ((useconds_t) (a_ms * 1000));
 }
 

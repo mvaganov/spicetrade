@@ -21,20 +21,16 @@ class CLIBuffer;
 *
 * @author Michael Vaganov
 */
-namespace CLI
-{
+namespace CLI {
 	/** version information */
 	extern const char *version;
 
 	/** a Command Line Interface object. multiple can be created */
-	class BufferManager
-	{
-		/** size user wants output area to be (not necessarily how big it is) */
-		Coord m_userSize;
+	class BufferManager {
 		/** if creating a non-standard i/o or using double buffering */
-		CLIBuffer * m_softwareCLIdata;
+		CLIBuffer * m_buff;
 		/** input buffer variables used for multi-byte key inputs, like arrow keys */
-		unsigned int m_inputBufferSize;
+		unsigned int m_inputBufferCount;
 		/** remember color changes */
 		int m_fcolor, m_bcolor;
 		/** queues key input entered by the user */
@@ -85,7 +81,7 @@ namespace CLI
 		void fillRect(int x, int y, int width, int height, char fill);
 
 		/** determine how big the screen the user asked for is */
-		Coord getUserSize();
+		Coord getSize();
 
 		/** @return number of columns. may be set with {@link #setSize(int,int)} */
 		int getWidth();
@@ -129,19 +125,19 @@ namespace CLI
 		void resetColor();
 
 		/** @return the output buffer (may be null if using default platform) */
-		CLIBuffer * getOutputBuffer(){return m_softwareCLIdata;}
+		CLIBuffer * getOutputBuffer() { return m_buff; }
 
 		/** @return how many bytes this CLI is storing temporarily */
-		int getInputBufferSize(){return m_inputBufferSize;}
+		int getInputBufferCount() {return m_inputBufferCount;}
 
-		/** @param a_size how many bytes this CLI is storing temporarily */
-		void setInputBufferSize(int a_size){m_inputBufferSize=a_size;}
+		/** @param a_count how many bytes this CLI is storing temporarily */
+		void setInputBufferCount(int a_count){m_inputBufferCount=a_count;}
 
 		/** temporary input storage. note: not const, so modifiable */
 		int* getInputBuffer(){return m_inputBuffer;}
 
-		/** refresh the standard output stream */
-		void refresh_stdout();
+		/** redraw the buffer */
+		void Draw();
 	};
 
 	/**

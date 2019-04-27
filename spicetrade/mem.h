@@ -59,13 +59,13 @@
 
 #ifdef ENVIRONMENT64
 /** turns on memory debugging. enables memory leak test output. increases memory header size! */
-#define MEM_LEAK_DEBUG		0x9d9285848185889b	// [HEADER]	0x5d5245444145485b
+#define MEM_LEAK_DEBUG		0x5d5245444145485b	// [HEADER]	0x5d5245444145485b
 /** clears allocated memory with this character (when enabled) */
-#define MEM_ALLOCATED		0x9d8d858d97858e9b	// [NEWMEM]	0x5d4d454d57454e5b
+#define MEM_ALLOCATED		0x5d4d454d57454e5b	// [NEWMEM]	0x5d4d454d57454e5b
 /** clears deallocated memory (that was once a header) with this character (when enabled) */
-#define MEM_CLEARED_HEADER	0xfddfd4d1d5d8dffb	// [_HEAD_]	0x5d485241454c435b
+#define MEM_CLEARED_HEADER	0x5d485241454c435b	// [CLEARH]	0x5d485241454c435b
 /** clears deallocated memory with this character (when enabled) */
-#define MEM_CLEARED			0xfddfdfdfdfdfdffb	// [CLEARM]	0x5d4d5241454c435b
+#define MEM_CLEARED			0x5d4d5241454c435b	// [CLEARM]	0x5d4d5241454c435b
 #elif defined ENVIRONMENT32
 /** turns on memory debugging. enables memory leak test output. increases memory header size! */
 #define MEM_LEAK_DEBUG		0x84818588	// HEAD

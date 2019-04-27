@@ -67,46 +67,44 @@ const EscapeTranslate listTTY[] = {
 	{0x7e32321b,_K(F11)},
 	{0x7e34321b,_K(F12)},
 	{0x007e331b,_K(DELETEKEY)},
-	// {3, "\033OH",_K(HOME)},
-	// {3, "\033OF",_K(END)},
-	// {4, "\033[2~",_K(INSERT)},
-	// {4, "\033[5~",_K(PAGE_UP)},
-	// {4, "\033[6~",_K(PAGE_DOWN)},
+	// {"\033OH",_K(HOME)},
+	// {"\033OF",_K(END)},
+	// {"\033[2~",_K(INSERT)},
+	// {"\033[5~",_K(PAGE_UP)},
+	// {"\033[6~",_K(PAGE_DOWN)},
 };
 #undef _K
 
 void CLI::BufferManager::move(int row, int col) {
-	if(m_softwareCLIdata) {
-		m_softwareCLIdata->Move(row,col);
-	}else{
+	if (m_buff) {
+		m_buff->Move(row,col);
+	}
+	else {
 		::platform_move(row, col);
 	}
 }
 
 #define USER_DIDNOT_DEFINE_SIZE	-1
-CLI::BufferManager::~BufferManager()
-{
-	m_userSize.Set(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE);
-	if(m_softwareCLIdata){
-		DELMEM(m_softwareCLIdata);
-		m_softwareCLIdata = 0;
+CLI::BufferManager::~BufferManager() {
+	if (m_buff) {
+		DELMEM(m_buff);
+		m_buff = 0;
 	}
 }
 
 CLI::BufferManager::BufferManager()
-	:m_userSize(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE),
-	 m_softwareCLIdata(0),m_inputBufferSize(0),
+	://(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE),
+	 m_buff(0), m_inputBufferCount(0),
 	 m_fcolor(CLI::COLOR::DEFAULT), m_bcolor(CLI::COLOR::DEFAULT)
 {}
 
 /** @return if using double buffering */
-int CLI::BufferManager::getBufferCount(){
-	if(!m_softwareCLIdata)return 0;
-	return m_softwareCLIdata->GetNumberOfBuffers();
+int CLI::BufferManager::getBufferCount() {
+	if (!m_buff) { return 0; }
+	return m_buff->GetNumberOfBuffers();
 }
 
-void CLI::BufferManager::resetColor()
-{
+void CLI::BufferManager::resetColor() {
 	this->setColor(CLI::COLOR::DEFAULT, CLI::COLOR::DEFAULT);
 }
 
@@ -115,58 +113,58 @@ void CLI::BufferManager::resetColor()
  * 1 to manage a buffer internally (required for non-standard i/o)
  * 2 to keep track of what is printed, reducing redraws where possible
  */
-void CLI::BufferManager::setBufferCount(int a_numberOfBuffers)
-{
-	if(a_numberOfBuffers > 0) {
-		if(!m_softwareCLIdata) {
-			m_softwareCLIdata = NEWMEM(CLIBuffer());
+void CLI::BufferManager::setBufferCount(int a_numberOfBuffers) {
+	if (a_numberOfBuffers > 0) {
+		if (!m_buff) {
+			m_buff = NEWMEM(CLIBuffer());
 		}
-		m_softwareCLIdata->ReinitializeDoubleBuffer(a_numberOfBuffers,
+		m_buff->ReinitializeDoubleBuffer(a_numberOfBuffers,
 				CLI::Coord(CLI::getWidth(),CLI::getHeight()));
 	} else {
-		if(m_softwareCLIdata) {
-			DELMEM(m_softwareCLIdata);
-			m_softwareCLIdata = 0;
+		if (m_buff) {
+			DELMEM(m_buff);
+			m_buff = 0;
 		}
 	}
 }
 
 /** force the width and height. -1 for either value to use the default */
-void CLI::BufferManager::setSize(int width, int height)
-{
-	m_userSize.Set(width,height);
-	if(m_softwareCLIdata) {
+void CLI::BufferManager::setSize(int width, int height) {
+	if (m_buff) {
 		// int w = CLI::getWidth();
 		// int h = CLI::getHeight();
 		// printf("%d %d\n",w,h);
 		// platform_getch();
-		m_softwareCLIdata->InternalDoubleBufferConsistencyEnforcement(
+		m_buff->InternalDoubleBufferConsistencyEnforcement(
 				CLI::Coord(width,height));
+	}
+	else {
+		::printf("can't set buffer size of unbuffered command line interface");
 	}
 }
 
 /** @param a_numbytes how much to absorb of the (beginning end) input buffer */
 void CLI::BufferManager::inputBufferConsume(unsigned int a_numBytes)
 {
-	if(a_numBytes == m_inputBufferSize)
-		m_inputBufferSize = 0;
-	else
-	{
-		int max = m_inputBufferSize-a_numBytes;
-		for(int i = 0; i < max; ++i)
-		{
+	if(a_numBytes == m_inputBufferCount) {
+		m_inputBufferCount = 0;
+	}
+	else {
+		int max = m_inputBufferCount-a_numBytes;
+		for(int i = 0; i < max; ++i) {
 			m_inputBuffer[i] = m_inputBuffer[i+a_numBytes];
 		}
-		m_inputBufferSize -= a_numBytes;
+		m_inputBufferCount -= a_numBytes;
 	}
 }
 
 /** place a single character at the current cursor, advancing it */
 void CLI::BufferManager::putchar(const int a_letter)
 {
-	if(m_softwareCLIdata && m_softwareCLIdata->GetNumberOfBuffers() > 0){
-		m_softwareCLIdata->putchar(a_letter, CLI::getFcolor(), CLI::getBcolor());
-	}else{
+	if (m_buff && m_buff->GetNumberOfBuffers() > 0) {
+		m_buff->putchar(a_letter, CLI::getFcolor(), CLI::getBcolor());
+	}
+	else {
 #ifdef CLI_DEBUG
 		// some how, characters are being put into an unbuffered CLI
 		::printf("BufferManager::putchar printing without buffer\n");
@@ -220,8 +218,7 @@ void CLI::BufferManager::fillRect(int x, int y, int width, int height, char fill
 }
 	
 /** fills the entire screen with the given character */
-void CLI::BufferManager::fillScreen(char a_letter)
-{
+void CLI::BufferManager::fillScreen(char a_letter) {
 	this->move(0,0);
 	int numSpaces = this->getWidth()*this->getHeight();
 	for(int i = 0; i < numSpaces; ++i){
@@ -235,12 +232,10 @@ void CLI::BufferManager::puts( const char *str, const int size ){
 }
 
 #include <stdarg.h>	// for va_list and va_start
-int CLI::BufferManager::printf( const char *fmt, ... )
-{
+int CLI::BufferManager::printf( const char *fmt, ... ) {
 	int size = 40, n;
 	char * buffer = NULL;
-	do
-	{
+	do {
 		size *= 2;
 		va_list valist;
 		va_start( valist, fmt );
@@ -259,59 +254,61 @@ int CLI::BufferManager::printf( const char *fmt, ... )
 }
 
 /** @return true if there is a key press waiting to be read */
-bool CLI::BufferManager::kbhit(){
-	return (m_inputBufferSize > 0) || platform_kbhit();
+bool CLI::BufferManager::kbhit() {
+	return (m_inputBufferCount > 0) || platform_kbhit();
 }
 
-int CLI::BufferManager::getchar()
-{
+int CLI::BufferManager::getchar() {
 	return returnKey(g_ESC_SEQ_LIST, g_ESC_SEQ_LIST_SIZE, this);
 }
 
 /** determine how big the screen the user asked for is */
-CLI::Coord CLI::BufferManager::getUserSize(){
-	if(!m_softwareCLIdata)
-		return CLI::Coord(USER_DIDNOT_DEFINE_SIZE,USER_DIDNOT_DEFINE_SIZE);
-	return this->m_softwareCLIdata->GetSize();
+CLI::Coord CLI::BufferManager::getSize() {
+	if (!m_buff) {
+		long w, h;
+		platform_consoleSize(h, w);
+		return CLI::Coord(w,h);
+	}
+	return this->m_buff->GetSize();
 }
 
 /** determine how many columns the screen is */
-int CLI::BufferManager::getWidth(){
-	if(this->m_softwareCLIdata && this->m_softwareCLIdata->GetSize().x > 0)
-		return this->m_softwareCLIdata->GetSize().x;
-	return m_userSize.x;
+int CLI::BufferManager::getWidth() {
+	if (this->m_buff && this->m_buff->GetSize().x > 0) {
+		return this->m_buff->GetSize().x;
+	}
+	long w, h;
+	platform_consoleSize(h, w);
+	return w;
 }
 
 /** determine how many rows the screen is */
-int CLI::BufferManager::getHeight(){
-	if(this->m_softwareCLIdata && this->m_softwareCLIdata->GetSize().y > 0)
-		return this->m_softwareCLIdata->GetSize().y;
-	return m_userSize.y;
+int CLI::BufferManager::getHeight() {
+	if(this->m_buff && this->m_buff->GetSize().y > 0)
+		return this->m_buff->GetSize().y;
+	long w, h;
+	platform_consoleSize(h, w);
+	return h;
 }
 
 /** @return foreground color */
-int CLI::BufferManager::getFcolor(){return m_fcolor;}
+int CLI::BufferManager::getFcolor() { return m_fcolor; }
 
 /** @return background color */
-int CLI::BufferManager::getBcolor(){return m_bcolor;}
+int CLI::BufferManager::getBcolor() { return m_bcolor; }
 
 /** use CLI::COLOR values for foreground and background */
-void CLI::BufferManager::setColor(int foreground, int background)
-{
+void CLI::BufferManager::setColor(int foreground, int background) {
 	m_fcolor = foreground;
 	m_bcolor = background;
-	// if(!m_softwareCLIdata)
 	platform_setColor(foreground, background);
 }
 
-void CLI::BufferManager::refresh_stdout()
-{
-	if(getBufferCount() > 0){
-		m_softwareCLIdata->Draw();
-	}else{
-		// some how, characters are being put into an unbuffered CLI
-		int i=0;i=1/i;
-		printf("BufferManager::refresh_stdout without a buffer\n");
+void CLI::BufferManager::Draw() {
+	if(getBufferCount() > 0) {
+		m_buff->Draw();
+	} else {
+		fflush(stdout);
 	}
 }
 
@@ -341,7 +338,8 @@ void CLI::setCLI(CLI::BufferManager * a_CLI) {
 void CLI::move(int row, int col) {
 	if(g_CLI){
 		g_CLI->move(row,col);
-	}else{
+	}
+	else{
 		::platform_move(row, col);
 	}
 }
@@ -379,7 +377,7 @@ int translateSpecialCharacters(const int& value,
 	// //int len;
 	// bool found = false;
 	// const int *bufr = a_this->getInputBuffer();
-	// int bufrSize = a_this->getInputBufferSize();
+	// int bufrSize = a_this->getInputBufferCount();
 	// for(int li = 0; !found && li < listCount; ++li) {
 	// 	// len = list[li].bytes;
 	// 	// found = true;
@@ -423,7 +421,7 @@ int translateSpecialCharacters(const int& value,
  * @param a_CLI the command line interface to get the data from
  */
 int returnKey(const EscapeTranslate * list, const int listCount, CLI::BufferManager * a_CLI) {
-	int bufrSize = a_CLI->getInputBufferSize();
+	int bufrSize = a_CLI->getInputBufferCount();
 	const int *bufr = a_CLI->getInputBuffer();
 	// if there is input in the buffer at all
 	if(bufrSize > 0) {
@@ -443,7 +441,8 @@ void CLI::putchar(int a_letter)
 {
 	if(g_CLI && g_CLI->getBufferCount() > 0){
 		g_CLI->putchar(a_letter);
-	}else{
+	}
+	else{
 		::putchar(a_letter);
 	}
 }
@@ -453,7 +452,8 @@ void CLI::fillScreen(char a_letter){
 #ifdef CLI_DEBUG
 	if(g_CLI){
 		g_CLI->fillScreen(a_letter);
-	}else{
+	}
+	else{
 		// this should not be happening...
 		::printf("fillscreen without initialized CLI\n");
 		int i=0;i=1/i;
@@ -484,7 +484,8 @@ int CLI::printf( const char *fmt, ... )
 #ifdef CLI_DEBUG
 	if(g_CLI){
 		g_CLI->puts(buffer, size);
-	}else{
+	}
+	else{
 		::printf("CLI::printf called on uninitialized CLI\n");
 		free(buffer);
 		int i=0;i=1/i;
@@ -604,10 +605,8 @@ int CLI::getBcolor()
 /** refresh the screen */
 void CLI::refresh()
 {
-	if(isDoubleBuffered())
-	{
-		g_CLI->refresh_stdout();
-	}
+	g_CLI->Draw();
+	fflush(stdout);
 }
 
 /** move the cursor to the given location in the console */
@@ -638,14 +637,15 @@ void platform_move(int row, int col)
 /** non-blocking key press, returns -1 if there is no key */
 int CLI::getchar() {
 	if(g_CLI){
-		int bufrSize = g_CLI->getInputBufferSize();\
+		int bufrSize = g_CLI->getInputBufferCount();\
 		int * bufr = g_CLI->getInputBuffer();
 		while(platform_kbhit()){
 			bufr[bufrSize++] = platform_getchar();
 		}
-		g_CLI->setInputBufferSize(bufrSize);
+		g_CLI->setInputBufferCount(bufrSize);
 		return g_CLI->getchar();
-	}else{
+	}
+	else{
 		if(platform_kbhit()){
 			return platform_getchar();
 		}
@@ -658,7 +658,8 @@ void CLI::setColor(int foreground, int background)
 {
 	if(g_CLI){
 		g_CLI->setColor(foreground, background);
-	}else{
+	}
+	else{
 		platform_setColor(foreground, background);
 	}
 }
@@ -728,7 +729,7 @@ const int g_ESC_SEQ_LIST_SIZE = sizeof(listTTY)/sizeof(*listTTY);
 int CLI::getchar()
 {
 	if(g_CLI) {
-		int bufrSize = g_CLI->getInputBufferSize();
+		int bufrSize = g_CLI->getInputBufferCount();
 		int *bufr = g_CLI->getInputBuffer();
 		while(platform_kbhit()){
 			// // add something to the input buffer if there is anything
@@ -737,9 +738,10 @@ int CLI::getchar()
 			bufr[bufrSize] = platform_getch();
 			bufrSize ++;
 		}
-		g_CLI->setInputBufferSize(bufrSize);
+		g_CLI->setInputBufferCount(bufrSize);
 		return g_CLI->getchar();
-	}else{
+	}
+	else{
 		if(platform_kbhit()){
 			return platform_getchar();
 		}
@@ -812,18 +814,16 @@ int CLI::getHeight()
 }
 
 /** @return foreground color */
-int CLI::getFcolor(){return g_CLI->getFcolor();}
+int CLI::getFcolor() { return g_CLI->getFcolor(); }
 
 /** @return background color */
-int CLI::getBcolor(){return g_CLI->getBcolor();}
+int CLI::getBcolor() { return g_CLI->getBcolor(); }
 
 /** refresh the screen */
-void CLI::refresh()
-{
-	if(g_CLI && g_CLI->getBufferCount() > 0){
-		g_CLI->refresh_stdout();
+void CLI::refresh() {
+	if(g_CLI && g_CLI->getBufferCount() > 0) {
+		g_CLI->Draw();
 	}
-	fflush(stdout); // force stdout refresh
 }
 
 // R, G, and B values must be between 0 and 5 (inclusive)
@@ -834,9 +834,10 @@ void CLI::refresh()
 /** use CLI::COLOR values for foreground and background */
 void CLI::setColor(int foreground, int background)
 {
-	if(g_CLI){
+	if(g_CLI) {
 		g_CLI->setColor(foreground, background);
-	}else{
+	}
+	else{
 		platform_setColor(foreground, background);
 	}
 }
