@@ -519,13 +519,13 @@ struct MemManager {
 
 	void deallocate(void * memory) {
 		MemBlock * header = MemBlock::blockForAllocatedMemory(memory);//(MemBlock*)(((ptrdiff_t)memory)-sizeof(MemBlock));
-#ifdef MEM_LEAK_DEBUG
+		#ifdef MEM_LEAK_DEBUG
 		bool isUsed = linkedList_contains(usedList, header);
 		// printf("free pre delete: "); linkedList_print(freeList);
 		// printf("used pre delete: "); linkedList_print(usedList);
-		if(!isUsed) return;
+		//if(!isUsed) return;
 		__failIf(!isUsed, "deleting unmanaged memory: 0x%016zx\n", (size_t)header);
-#endif
+		#endif
 		__failIf(isFree(header), "double-deleting memory: 0x%016zx\n", (size_t)header);
 		// printf("~~deallocate");
 		linkedList_remove(usedList, header);
@@ -672,15 +672,13 @@ static ptrdiff_t g_stackbegin, g_stackend;
  * @param ptr where to mark the stack as starting
  * @param stackSize how much stack space to assume
  */
-void MEM::markAsStack(void * ptr, size_t stackSize)
-{
+void MEM::markAsStack(void * ptr, size_t stackSize) {
 	g_stackbegin = (ptrdiff_t)ptr;
 	g_stackend = g_stackbegin + stackSize;
 }
 
 /** @return how many bytes expected to be valid beyond this memory address. markAsStack should be called prior to this */
-size_t MEM::validBytesAt(void * ptr)
-{
+size_t MEM::validBytesAt(void * ptr) {
 	ptrdiff_t start = g_stackbegin, end = g_stackend, thisone = (ptrdiff_t)ptr;
 	// if this pointer is on the stack
 	if(thisone >= start && thisone < end){

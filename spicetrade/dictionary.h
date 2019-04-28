@@ -58,9 +58,9 @@ class Dictionary {
 		FreeKVP ((KVP*)node->getValue());
 	}
 
-	static int RBNodeCompare_KVP (RBTKV* self, RBTKV::Node* a, RBTKV::Node* b) {
-		KVP* ka = (KVP*)a->getValue();
-		KVP* kb = (KVP*)b->getValue();
+	static int RBNodeCompare_KVP (RBTKV* self, void* a, void* b) {
+		KVP* ka = (KVP*)a;
+		KVP* kb = (KVP*)b;
 		if (ka->key < kb->key)
 			return -1;
 		if (ka->key > kb->key)
@@ -97,14 +97,18 @@ class Dictionary {
 	}
 
 	void ToArray (KVP* list) {
-		int index = 0;
 		auto iter = tree->createIter ();
 		if (iter) {
-			for (KVP* v = (KVP*)iter->first (); v; v = (KVP*)iter->next ()) {
-				list[index++] = *v;
+			int i = 0, count = tree->size();
+			for (KVP* v = (KVP*)iter->first (); i < count; v = (KVP*)iter->next ()) {
+				list[i++] = *v;
 			}
+			// for (KVP* v = (KVP*)iter->first (); v; v = (KVP*)iter->next ()) {
+			// 	list[index++] = *v;
+			// }
 			iter->dealloc ();
 		}
+
 	}
 	void Clear () {
 		Release ();

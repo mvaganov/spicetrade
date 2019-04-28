@@ -30,7 +30,7 @@
 //
 // For more information, please refer to <http://unlicense.org/>
 //
-
+#include "platform_conio.h"
 #pragma once
 
 #include <stdio.h>
@@ -40,43 +40,60 @@
 #	define RB_ITER_MAX_HEIGHT 64 // Tallest allowable tree to iterate
 #endif
 
+#define __VALUE_SELF	0
+#define __VALUE_PTR		1
+#define __VALUE	__VALUE_PTR
+
 //template<class KEY, class VAL>
 class RBT {
   public:
 	// this RBTree Node has notably no parent pointer, and optionally will fold the red/black bit into the value left pointer.
 	struct Node {
 	  private:
-		void* value;    // User provided, used indirectly via RBT_node_cmp_f.
 		Node* _link[2]; // Link left [0] and right [1]
+
+#if __VALUE == __VALUE_PTR
+		void* value;    // User provided, used indirectly via RBT_node_cmp_f.
+#endif
 
 // give the red/black mark a whole variable. this increases the size of the node by one alignment-width (sizeof(size_t))
 #define __RB_VAR 0
-// hide the red/black mark in the first link. this slows down all link traversal operations :(
+// hide the red/black mark in the first link. this slows down all link traversal operations, and requires tree nodes to be aligned to even addresses.
 #define __RB_LINK 1
 // hide the red/black mark in the value. this requires that the value be a pointer :(
 #define __RB_VALUE 2
-#define __BIT_IN __RB_VAR
+#define __BIT_IN __RB_LINK
 
 #if __BIT_IN == __RB_LINK
+	#define FLAG_LINK	1
 	  public:
-		Node* link (const int right) { return (Node*)((size_t) (_link[right]) & (~((size_t)1))); }
-		void setlink (const int right, Node* n) {
-			if (!right) {
-				bool r = (((size_t)_link[0]) & 1);
-				_link[0] = (Node*)((size_t)n | (int)r);
+		Node* link (const int whichLink) { return (Node*)((size_t) (_link[whichLink]) & (~((size_t)1))); }
+		static void setlink(Node* &ptrToSet, Node* valueToGiveIt) {
+			ptrToSet = (Node*)((size_t)valueToGiveIt | (((size_t)ptrToSet) & 1));
+		}
+		void setlink (const int whichLink, Node* n) {
+			if (whichLink == FLAG_LINK) {
+				//_link[FLAG_LINK] = (Node*)((size_t)n | (((size_t)_link[FLAG_LINK]) & 1));
+				setlink(_link[FLAG_LINK], n);
 			} else {
-				_link[right] = n;
+				_link[whichLink] = n;
 			}
 		}
-		static bool isRed (const Node* self) { return (((size_t)self->_link[0]) & 1); }
+		static bool isRed (const Node* self) { return (((size_t)self->_link[FLAG_LINK]) & 1); }
 		static void setRed (Node* self, bool value) {
-			self->_link[0] = (Node*)(((size_t)self->_link[0]) | isRed (self));
+			self->_link[FLAG_LINK] = (Node*)(((size_t)self->_link[FLAG_LINK]) | isRed (self));
 		}
+		#if __VALUE == __VALUE_PTR
 		static void* getValue (const Node* self) { return (self->value); }
 		static void setValue (Node* self, void* value) { self->value = value; }
+		#elif __VALUE == __VALUE_SELF
+		static void* getValue (const Node* self) { return (void*)self; }
+		static void setValue (Node* self, void* value) { }
+		#endif
 #elif __BIT_IN == __RB_VALUE
 	  public:
 		Node* link (const int right) { return _link[right]; }
+		static void setlink(Node* &ptrToSet, Node* valueToGiveIt) { ptrToSet = valueToGiveIt; }
 		void setlink (const int right, Node* n) { _link[right] = n; }
 		static bool isRed (const Node* self) { return (((size_t) (self)->value) & 1); }
 		static void setRed (Node* self, bool value) {
@@ -100,13 +117,13 @@ class RBT {
 		int red; // Color red (1), black (0)
 	  public:
 		Node* link (const int right) { return _link[right]; }
+		static void setlink(Node* &ptrToSet, Node* valueToGiveIt) { ptrToSet = valueToGiveIt; }
 		void setlink (const int right, Node* n) { _link[right] = n; }
 		static bool isRed (const Node* self) { return (self->red); }
 		static void setRed (Node* self, bool value) { self->red = value; }
 		static void* getValue (const Node* self) { return (self->value); }
 		static void setValue (Node* self, void* value) { self->value = value; }
 #endif
-
 		static Node* alloc () { return (Node*)malloc (sizeof (Node)); }
 		static Node* create (void* value) {
 			return Node::init (Node::alloc (), value);
@@ -114,9 +131,8 @@ class RBT {
 		static Node* init (Node* self, void* value) {
 			if (self) {
 				setRed (self, 1);
-				self->setlink (0, NULL);
-				self->setlink (1, NULL); //self->link[0] = self->link[1] = NULL;
-				setValue (self, value);  //self->value = value;
+				self->setlink (0, NULL); self->setlink (1, NULL);
+				setValue (self, value);
 			}
 			return self;
 		}
@@ -125,17 +141,21 @@ class RBT {
 				free (self);
 			}
 		}
+		static Node*& _getRawLink(Node* n, int dir) { return n->_link[dir]; }
 
 	  public:
 		// OOP convenience
-		Node () : value (0) {
-#ifndef __BIT_IN_VALUE
+		Node () {
+			#if __BIT_IN == __RB_VALUE
 			setRed (0);
-#endif
-			setlink (0, NULL);
-			setlink (1, NULL); //link[0] = link[1] = NULL;
+			#endif
+			#if __VALUE == __VALUE_PTR
+			value = NULL;
+			#endif
+			setlink (0, NULL); setlink (1, NULL);
 		}
-		void init (void* value) { init (this); }
+		void init (void* value) { Node::init (this, value); }
+		void init () { Node::init (this, NULL); }
 		void dealloc () { dealloc (this); }
 
 		bool isRed () const { return isRed (this); }
@@ -149,22 +169,10 @@ class RBT {
 		Node* path[RB_ITER_MAX_HEIGHT]; // Traversal path. kept track of because there's no parent node
 		size_t top;                     // Top of stack
 		void* info;                     // User provided, not used by rb_iter.
-
-		static void* first (iter* self) {
-			return start (self, 0);
-		}
-
-		static void* last (iter* self) {
-			return start (self, 1);
-		}
-
-		static void* next (iter* self) {
-			return move (self, 1);
-		}
-
-		static void* prev (iter* self) {
-			return move (self, 0);
-		}
+		static void* first(iter* self) { return start (self, 0); }
+		static void* last (iter* self) { return start (self, 1); }
+		static void* next (iter* self) { return move (self, 1); }
+		static void* prev (iter* self) { return move (self, 0); }
 
 	  private:
 		/**
@@ -172,26 +180,23 @@ class RBT {
 		* to begin traversal at the smallest or largest valued node.
 		*/
 		static void* start (iter* self, int dir) {
+			if(!self) return NULL;
 			void* result = NULL;
-			if (self) {
-				self->n = self->tree->root;
-				self->top = 0;
-				// Save the path for later selfersal
-				if (self->n != NULL) {
-					while (self->n->link (dir) != NULL) {
-						self->path[self->top++] = self->n;
-						self->n = self->n->link (dir);
-					}
+			self->n = self->tree->root; // start at the root
+			self->top = 0;
+			if (self->n != NULL) {
+				while (self->n->link (dir) != NULL) {
+					self->path[self->top++] = self->n; // keep track of traversal in a list (so a parent ptr isnt needed)
+					self->n = self->n->link (dir); // move along the given direction
 				}
-				result = self->n == NULL ? NULL : Node::getValue (self->n); //self->n->value;
 			}
+			result = self->n == NULL ? NULL : Node::getValue (self->n);
 			return result;
 		}
 
-		// Traverse a red black tree in the user-specified direction (0 asc, 1 desc)
+		/** Traverse the tree in the user-specified direction (0 asc, 1 desc) */
 		static void* move (iter* self, int dir) {
-			if (self->n->link (dir) != NULL) {
-				// Continue down this branch
+			if (self->n->link (dir) != NULL) { // travel in the given direction if possible
 				self->path[self->top++] = self->n;
 				self->n = self->n->link (dir);
 				while (self->n->link (!dir) != NULL) {
@@ -199,7 +204,7 @@ class RBT {
 					self->n = self->n->link (!dir);
 				}
 			} else {
-				// Move to the next branch
+				// it the specified direction isn't possible, go backwards up the tree
 				Node* last = NULL;
 				do {
 					if (self->top == 0) {
@@ -217,9 +222,7 @@ class RBT {
 		// OOP convenience
 		iter () : tree (NULL), n (NULL), info (NULL) {}
 		iter (RBT* tree) : tree (tree), n (NULL), info (NULL) {}
-		static iter* alloc () {
-			return (iter*)malloc (sizeof (iter));
-		}
+		static iter* alloc () { return (iter*)malloc (sizeof (iter)); }
 
 		static iter* init (iter* self, RBT* tree) {
 			if (self) {
@@ -230,9 +233,7 @@ class RBT {
 			return self;
 		}
 
-		static iter* create (RBT* tree) {
-			return init (alloc (), tree);
-		}
+		static iter* create (RBT* tree) { return init (alloc (), tree); }
 
 		static void dealloc (iter* self) {
 			if (self) {
@@ -248,16 +249,19 @@ class RBT {
 		void* prev () { return prev (this); }
 	};
 
-	typedef int (*node_cmp_f) (RBT* self, Node* a, Node* b);
-	typedef void (*node_f) (RBT* self, Node* node);
 	Node* root;
+
+#if __VALUE == __VALUE_PTR
+	typedef int (*node_cmp_f) (RBT* self, void* value_a, void* value_b);
+	typedef void (*node_f) (RBT* self, Node* node);
 	node_cmp_f cmp;
+#endif
+
 	size_t _size;
 	void* info; // User provided, not used by RBT.
 
-	static int node_cmp_ptr_cb (RBT* self, Node* a, Node* b) {
-		void *va = a->getValue (), *vb = b->getValue ();
-		return (va > vb) - (va < vb);
+	static int node_cmp_ptr_cb (RBT* self, void* value_a, void* value_b) {
+		return (value_a > value_b) - (value_a < value_b);
 	}
 
 	static void node_dealloc_cb (RBT* self, Node* node) {
@@ -307,12 +311,10 @@ class RBT {
 	static void* find (RBT* self, void* value) {
 		void* result = NULL;
 		if (self) {
-			Node what;
-			Node::setValue (&what, value); //what.value = value;
 			Node* it = self->root;
 			int cmp = 0;
 			while (it) {
-				if ((cmp = self->cmp (self, it, &what))) {
+				if ((cmp = self->cmp (self, it->getValue(), value))) {
 					// If tree supports duplicates, they should be chained to the right subtree for this to work
 					it = it->link (cmp < 0);
 				} else {
@@ -353,6 +355,7 @@ class RBT {
 						// Insert node at the first null link.
 						p->setlink (dir, what);
 						q = what;
+						result = 1;
 					} else if (rb_node_is_red (q->link (0)) && rb_node_is_red (q->link (1))) {
 						// Simple red violation: color flip
 						q->setRed (1);
@@ -368,12 +371,12 @@ class RBT {
 							t->setlink (dir2, rb_node_rotate2 (g, !last));
 						}
 					}
-					// Stop working if we inserted a node. This check also disallows duplicates in the tree
-					if (self->cmp (self, q, what) == 0) {
+					// Stop working if we inserted a node
+					if (result == 1 && self->cmp (self, q->getValue(), what->getValue()) == 0) {
 						break;
 					}
 					last = dir;
-					dir = self->cmp (self, q, what) < 0;
+					dir = self->cmp (self, q->getValue(), what->getValue()) < 0;
 					// Move the helpers down
 					if (g != NULL) {
 						t = g;
@@ -413,11 +416,10 @@ class RBT {
 	*/
 	static int remove_with_cb (RBT* self, void* value, node_f node_cb) {
 		if (self->root != NULL) {
-			Node head;                     // False tree root
-			Node what;                     // Value wrapper node
-			Node::setValue (&what, value); //what.value = value;
+			Node head;                     // False tree root... why is this not a **?
 			Node *q, *p, *g;               // Helpers
 			Node* f = NULL;                // Found item
+			Node **ptrToF = NULL, **ptrToQ = NULL;
 			int dir = 1;
 			// Set up our helpers
 			q = &head;
@@ -428,11 +430,11 @@ class RBT {
 				int last = dir;
 				// Move the helpers down
 				g = p, p = q;
-				q = q->link (dir);
-				dir = self->cmp (self, q, &what) < 0;
+				q = q->link (dir); ptrToQ = &Node::_getRawLink(q, dir);
+				dir = self->cmp (self, q->getValue(), value) < 0;
 				// Save the node with matching value and keep going; we'll do removal tasks at the end
-				if (self->cmp (self, q, &what) == 0) {
-					f = q;
+				if (self->cmp (self, q->getValue(), value) == 0) {
+					f = q; ptrToF = ptrToQ;
 				}
 				// Push the red node down with rotations and color flips
 				if (!rb_node_is_red (q) && !rb_node_is_red (q->link (dir))) {
@@ -474,7 +476,16 @@ class RBT {
 				if (node_cb) {
 					node_cb (self, q);
 				}
+
+				// swapNodes(ptrToF, ptrToQ);
+				// p->setlink (p->link (1) == f, f->link (f->link (0) == NULL));
+				// if (node_cb) {
+				// 	node_cb (self, f);
+				// }
+
 				q = NULL;
+				ptrToQ = NULL;
+				printf("swapped!\n");
 			}
 			// Update the root (it may be different)
 			self->root = head.link (1);
@@ -485,6 +496,15 @@ class RBT {
 			--self->_size;
 		}
 		return 1;
+	}
+
+	static void swapNodes(Node** ptrToA, Node** ptrToB) {
+		Node *a = *ptrToA, *b = *ptrToB;
+		Node::setlink(*ptrToA, b);
+		Node::setlink(*ptrToB, a);
+		Node* temp;
+		temp = a->link(0); a->setlink(0, b->link(0)); b->setlink(0, temp);
+		temp = a->link(1); a->setlink(1, b->link(1)); b->setlink(1, temp);
 	}
 
   private:
@@ -529,7 +549,8 @@ class RBT {
 			lh = test (self, ln);
 			rh = test (self, rn);
 			// Invalid binary search tree
-			if ((ln != NULL && self->cmp (self, ln, root) >= 0) || (rn != NULL && self->cmp (self, rn, root) <= 0)) {
+			if ((ln != NULL && self->cmp (self, ln->getValue(), root->getValue()) >= 0)
+			|| (rn != NULL && self->cmp (self, rn->getValue(), root->getValue()) <= 0)) {
 				puts ("Binary tree violation");
 				return 0;
 			}
