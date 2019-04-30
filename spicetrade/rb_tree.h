@@ -49,7 +49,7 @@ class RBT {
   public:
 	// this RBTree Node has notably no parent pointer, and optionally will fold the red/black bit into the value left pointer.
 	struct Node {
-	  private:
+	  //private:
 		Node* _link[2]; // Link left [0] and right [1]
 
 #if __VALUE == __VALUE_PTR
@@ -62,7 +62,7 @@ class RBT {
 #define __RB_LINK 1
 // hide the red/black mark in the value. this requires that the value be a pointer :(
 #define __RB_VALUE 2
-#define __BIT_IN __RB_LINK
+#define __BIT_IN __RB_VAR
 
 #if __BIT_IN == __RB_LINK
 	#define FLAG_LINK	1
@@ -417,39 +417,41 @@ class RBT {
 	static int remove_with_cb (RBT* self, void* value, node_f node_cb) {
 		if (self->root != NULL) {
 			Node head;                     // False tree root... why is this not a **?
-			Node *q, *p, *g;               // Helpers
-			Node* f = NULL;                // Found item
+			Node *cursor, *p, *g;               // Helpers
+			Node* foundn = NULL;           // Found item
 			Node **ptrToF = NULL, **ptrToQ = NULL;
 			int dir = 1;
 			// Set up our helpers
-			q = &head;
+			cursor = &head;
 			g = p = NULL;
-			q->setlink (1, self->root);
+			cursor->setlink (1, self->root);
 			// Search and push a red node down to fix red violations as we go
-			while (q->link (dir) != NULL) {
+			while (cursor->link (dir) != NULL) {
 				int last = dir;
 				// Move the helpers down
-				g = p, p = q;
-				q = q->link (dir); ptrToQ = &Node::_getRawLink(q, dir);
-				dir = self->cmp (self, q->getValue(), value) < 0;
+				g = p, p = cursor;
+				ptrToQ = &(cursor->_link[dir]);//&Node::_getRawLink(q, dir);
+				cursor = cursor->_link[dir];
+				if(*ptrToQ != cursor){ printf("uh oh %016zx != %016zx\n", (size_t)cursor, (size_t)(*ptrToQ)); int i=0;i=1/i;}
+				dir = self->cmp (self, cursor->getValue(), value) < 0;
 				// Save the node with matching value and keep going; we'll do removal tasks at the end
-				if (self->cmp (self, q->getValue(), value) == 0) {
-					f = q; ptrToF = ptrToQ;
+				if (self->cmp (self, cursor->getValue(), value) == 0) {
+					ptrToF = ptrToQ; foundn = cursor;
 				}
 				// Push the red node down with rotations and color flips
-				if (!rb_node_is_red (q) && !rb_node_is_red (q->link (dir))) {
-					if (rb_node_is_red (q->link (!dir))) {
-						Node* n = rb_node_rotate (q, dir);
+				if (!rb_node_is_red (cursor) && !rb_node_is_red (cursor->link (dir))) {
+					if (rb_node_is_red (cursor->link (!dir))) {
+						Node* n = rb_node_rotate (cursor, dir);
 						p->setlink (last, n);
 						p = n;
-					} else if (!rb_node_is_red (q->link (!dir))) {
+					} else if (!rb_node_is_red (cursor->link (!dir))) {
 						Node* s = p->link (!last);
 						if (s) {
 							if (!rb_node_is_red (s->link (!last)) && !rb_node_is_red (s->link (last))) {
 								// Color flip
 								p->setRed (0);
 								s->setRed (1);
-								q->setRed (1);
+								cursor->setRed (1);
 							} else {
 								int dir2 = g->link (1) == p;
 								if (rb_node_is_red (s->link (last))) {
@@ -458,7 +460,7 @@ class RBT {
 									g->setlink (dir2, rb_node_rotate (p, last));
 								}
 								// Ensure correct coloring
-								q->setRed (1);
+								cursor->setRed (1);
 								g->link (dir2)->setRed (1);
 								g->link (dir2)->link (0)->setRed (0);
 								g->link (dir2)->link (1)->setRed (0);
@@ -468,21 +470,31 @@ class RBT {
 				}
 			}
 			// Replace and remove the saved node
-			if (f) {
-				if(f == q){
-					printf("no need to swap with itself\n");
-				}
-				else {
+			if (foundn) {
+				// if(f == q){
+				// 	printf("no need to swap with itself\n");
+				// }
+				// else {
 					int buffer[64];
 					int position = 0;
-					printNodesPointingAt(self->root, q, buffer, position); printf("<-q %d\n", q->isRed());
-					printNodesPointingAt(self->root, f, buffer, position); printf("<-f %d\n", f->isRed());
-					void* tmp = Node::getValue (f);         //f->value;
-					Node::setValue (f, Node::getValue (q)); //f->value = q->value;
-					Node::setValue (q, tmp);                //q->value = tmp;
-					p->setlink (p->link (1) == q, q->link (q->link (0) == NULL));
+					self->printTree();
+					printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q0 %d\n", cursor->isRed());
+					printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f0 %d\n", foundn->isRed());
+
+					// swapNodes(ptrToF, ptrToQ); printf("~~~swapped~~~\n");
+					// printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q1 %d\n", cursor->isRed());
+					// printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f1 %d\n", foundn->isRed());
+					// swapNodes(ptrToF, ptrToQ); printf("~~~swapped back~~~\n");
+					// printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q2 %d\n", cursor->isRed());
+					// printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f2 %d\n", foundn->isRed());
+
+					void* tmp = Node::getValue (foundn);         //f->value;
+					Node::setValue (foundn, Node::getValue (cursor)); //f->value = q->value;
+					Node::setValue (cursor, tmp);                //q->value = tmp;
+
+					p->setlink (p->link (1) == cursor, cursor->link (cursor->link (0) == NULL));
 					if (node_cb) {
-						node_cb (self, q);
+						node_cb (self, cursor);
 					}
 
 					// swapNodes(ptrToF, ptrToQ);
@@ -491,10 +503,10 @@ class RBT {
 					// 	node_cb (self, f);
 					// }
 
-					q = NULL;
+					cursor = NULL;
 					ptrToQ = NULL;
 					printf("swapped!\n");
-				}
+				// }
 			}
 			// Update the root (it may be different)
 			self->root = head.link (1);
@@ -508,11 +520,14 @@ class RBT {
 	}
 	static void printNodesPointingAt(Node* tree, Node* search, int* path, int& position) {
 		Node *link;
-		for(int i=0;i<2;++i){
+		for(int i=0;i<2;++i) {
 			Node *link = tree->link(i);
 			if(link) {
 				path[position++] = i;
-				if(link == search) { printf(" %zx:", (size_t)tree); for(int i=0;i<position;++i){printf("%d", path[i]);}}
+				if(link == search) {
+					printf(" %zx:", (size_t)tree);
+					for(int i=0;i<position;++i){printf("%d", path[i]);}
+				}
 				printNodesPointingAt(link, search, path, position);
 				--position;
 			}
@@ -521,14 +536,18 @@ class RBT {
 
 	static void swapNodes(Node** ptrToA, Node** ptrToB) {
 		Node *a = *ptrToA, *b = *ptrToB;
-		Node::setlink(*ptrToA, b);
-		Node::setlink(*ptrToB, a);
+		// Node::setlink(*ptrToA, b);
+		// Node::setlink(*ptrToB, a);
 		Node* temp;
-		
-		temp = a->link(0); a->setlink(0, b->link(0)); b->setlink(0, temp);
-		temp = a->link(1); a->setlink(1, b->link(1)); b->setlink(1, temp);
+		for(int i = 0; i < 2; ++i) {
+			temp = a->link(i); a->setlink(i, b->link(i)); b->setlink(i, temp);
+		}
 		int t;
 		t    = a->isRed(); a->setRed(    b->isRed()); b->setRed(    t   );
+
+		if(true || *ptrToA != b) { Node::setlink(*ptrToA, b); }
+		if(true || *ptrToB != a) { Node::setlink(*ptrToB, a); }
+
 	}
 
   private:
@@ -589,6 +608,89 @@ class RBT {
 			else
 				return 0;
 		}
+	}
+
+	/** @return how deep the heap goes (how many levels) */
+	static int getDepth(Node* n) {
+		if(n == NULL) return 0;
+		int d = 1;
+		int depths[2];
+		for(int i = 0; i < 2; ++i) {
+			depths[i] = getDepth(n->link(i));
+		}
+		d += (depths[0] > depths[1])?depths[0]:depths[1];
+		return d;
+	}
+  public:
+	void printTree() {
+		if(root == 0) return;
+		// determine how big the pyramid needs to be
+		int depth = getDepth(root);
+		int maxElements = 1;
+		int inRow = 1;
+		for(int i = 0; i < depth; ++i) {
+			maxElements += inRow;
+			inRow *= 2;
+		}
+		struct nodeAbbrev { void* value; bool isRed; };
+		nodeAbbrev * pyramidBuffer = new nodeAbbrev[maxElements];
+		void* defaultValue = (void*)0xb44df00d;
+		for(int i = 0; i < maxElements; ++i) {
+			pyramidBuffer[i].value = defaultValue;
+			pyramidBuffer[i].isRed = false;
+		}
+		inRow = 1;
+		int index = 0;
+		bool couldHaveAValue;
+		void* value;
+		bool isRed;
+		Node * cursor;
+		// fill data into the pyramid
+		for(int d = 0; d < depth; ++d) {
+			for(int col = 0; col < inRow; ++col) {
+				cursor = root;
+				couldHaveAValue = true;
+				for(int binaryDigit = 0; couldHaveAValue && binaryDigit < d; binaryDigit++) {
+					int whichSide = ((col >> (d-binaryDigit-1)) & 1);
+					cursor = cursor->link(whichSide);
+					couldHaveAValue = cursor != 0;
+				}
+				value = (couldHaveAValue)?cursor->getValue():defaultValue;
+				isRed = (couldHaveAValue)?cursor->isRed():false;
+				pyramidBuffer[index].value = value;
+				pyramidBuffer[index].isRed = isRed;
+				index++;
+			}
+			if(d+1 < depth)
+				inRow *= 2;
+		}
+		int NUMCHARS = 3;
+		int maxWidth = (NUMCHARS+1)*inRow;
+		inRow = 1;
+		int leadSpace;
+		int betweenValues;
+		index = 0;
+		// print the pyramid
+		for(int d = 0; d < depth; ++d) {
+			betweenValues = (maxWidth/inRow)-NUMCHARS;
+			leadSpace = (betweenValues)/2;
+			for(int i = 0; i < leadSpace; ++i) { putchar(' '); }
+			for(int n = 0; n < inRow; ++n) {
+				if(pyramidBuffer[index].value != defaultValue) {
+					printf("%02d%c", pyramidBuffer[index].value, (pyramidBuffer[index].isRed?'R':' '));
+				}
+				else {
+					printf("...");
+				}
+				index++;
+				if(n+1 < inRow) {
+					for(int i = 0; i < betweenValues; ++i) { putchar(' '); }
+				}
+			}
+			printf("\n");
+			inRow *= 2;
+		}
+		delete [] pyramidBuffer;
 	}
 
   public:

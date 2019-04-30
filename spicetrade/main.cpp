@@ -78,6 +78,7 @@ int main (int argc, const char** argv) {
 	printf("\n");
 
 	for(int i = 0; i < list.Count(); ++i) {
+		//rbt->printTree();
 		printf("%i", list[i]);
 		printRBT(rbt);
 		rbt->remove((void*)(size_t)list[i]);
