@@ -523,7 +523,10 @@ struct MemManager {
 		bool isUsed = linkedList_contains(usedList, header);
 		// printf("free pre delete: "); linkedList_print(freeList);
 		// printf("used pre delete: "); linkedList_print(usedList);
-		//if(!isUsed) return;
+		if(!isUsed) {
+			//printf("ignoring deallocation or 0x%016zx, not managed by mem\n", (size_t)memory); 
+			return;
+		}
 		__failIf(!isUsed, "deleting unmanaged memory: 0x%016zx\n", (size_t)header);
 		#endif
 		__failIf(isFree(header), "double-deleting memory: 0x%016zx\n", (size_t)header);

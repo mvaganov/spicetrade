@@ -67,7 +67,7 @@ class RBT {
 #if __BIT_IN == __RB_LINK
 	#define FLAG_LINK	1
 	  public:
-		Node* link (const int whichLink) { return (Node*)((size_t) (_link[whichLink]) & (~((size_t)1))); }
+		Node* link (const int whichLink) { return (Node*)((size_t)(_link[whichLink]) & (~((size_t)1))); }
 		static void setlink(Node* &ptrToSet, Node* valueToGiveIt) {
 			ptrToSet = (Node*)((size_t)valueToGiveIt | (((size_t)ptrToSet) & 1));
 		}
@@ -469,23 +469,32 @@ class RBT {
 			}
 			// Replace and remove the saved node
 			if (f) {
-				void* tmp = Node::getValue (f);         //f->value;
-				Node::setValue (f, Node::getValue (q)); //f->value = q->value;
-				Node::setValue (q, tmp);                //q->value = tmp;
-				p->setlink (p->link (1) == q, q->link (q->link (0) == NULL));
-				if (node_cb) {
-					node_cb (self, q);
+				if(f == q){
+					printf("no need to swap with itself\n");
 				}
+				else {
+					int buffer[64];
+					int position = 0;
+					printNodesPointingAt(self->root, q, buffer, position); printf("<-q %d\n", q->isRed());
+					printNodesPointingAt(self->root, f, buffer, position); printf("<-f %d\n", f->isRed());
+					void* tmp = Node::getValue (f);         //f->value;
+					Node::setValue (f, Node::getValue (q)); //f->value = q->value;
+					Node::setValue (q, tmp);                //q->value = tmp;
+					p->setlink (p->link (1) == q, q->link (q->link (0) == NULL));
+					if (node_cb) {
+						node_cb (self, q);
+					}
 
-				// swapNodes(ptrToF, ptrToQ);
-				// p->setlink (p->link (1) == f, f->link (f->link (0) == NULL));
-				// if (node_cb) {
-				// 	node_cb (self, f);
-				// }
+					// swapNodes(ptrToF, ptrToQ);
+					// p->setlink (p->link (1) == f, f->link (f->link (0) == NULL));
+					// if (node_cb) {
+					// 	node_cb (self, f);
+					// }
 
-				q = NULL;
-				ptrToQ = NULL;
-				printf("swapped!\n");
+					q = NULL;
+					ptrToQ = NULL;
+					printf("swapped!\n");
+				}
 			}
 			// Update the root (it may be different)
 			self->root = head.link (1);
@@ -497,14 +506,29 @@ class RBT {
 		}
 		return 1;
 	}
+	static void printNodesPointingAt(Node* tree, Node* search, int* path, int& position) {
+		Node *link;
+		for(int i=0;i<2;++i){
+			Node *link = tree->link(i);
+			if(link) {
+				path[position++] = i;
+				if(link == search) { printf(" %zx:", (size_t)tree); for(int i=0;i<position;++i){printf("%d", path[i]);}}
+				printNodesPointingAt(link, search, path, position);
+				--position;
+			}
+		}
+	}
 
 	static void swapNodes(Node** ptrToA, Node** ptrToB) {
 		Node *a = *ptrToA, *b = *ptrToB;
 		Node::setlink(*ptrToA, b);
 		Node::setlink(*ptrToB, a);
 		Node* temp;
+		
 		temp = a->link(0); a->setlink(0, b->link(0)); b->setlink(0, temp);
 		temp = a->link(1); a->setlink(1, b->link(1)); b->setlink(1, temp);
+		int t;
+		t    = a->isRed(); a->setRed(    b->isRed()); b->setRed(    t   );
 	}
 
   private:

@@ -54,17 +54,45 @@
 //   _inventoryPredicted
 #include <iostream>
 
-int main (int argc, const char** argv) {
-	int numPlayers=2;
-	// std::cout << "How many players? ";
-	// std::cin >> numPlayers;
-	Game g;
-	g.Init(numPlayers);
-//	MEM::REPORT_MEMORY();
-	while (g.IsRunning()) {
-		g.Draw();
-	 	g.RefreshInput();
-	 	g.Update();
+void printRBT(RBT* tree) {
+	auto iter = tree->createIter ();
+	int i = 0, count = tree->size();
+	printf("["); fflush(stdout);
+	for (void* v = iter->first (); i < count; v = iter->next (), i++) {
+		printf("%3zi", (size_t)v); fflush(stdout);
 	}
+	printf(" ]\n"); fflush(stdout);
+	iter->dealloc ();
+}
+
+int main (int argc, const char** argv) {
+	RBT* rbt = RBT::create(NULL);
+	VList<int> list;
+	printf("   ");
+	for(int i = 0; i < 20; ++i) {
+		int n = platform_random() % 100;
+		list.Add(n);
+		rbt->insert((void*)(size_t)n);
+		printf("%3zi", (size_t)n);
+	}
+	printf("\n");
+
+	for(int i = 0; i < list.Count(); ++i) {
+		printf("%i", list[i]);
+		printRBT(rbt);
+		rbt->remove((void*)(size_t)list[i]);
+	}
+
+// 	int numPlayers=2;
+// 	// std::cout << "How many players? ";
+// 	// std::cin >> numPlayers;
+// 	Game g;
+// 	g.Init(numPlayers);
+// //	MEM::REPORT_MEMORY();
+// 	while (g.IsRunning()) {
+// 		g.Draw();
+// 	 	g.RefreshInput();
+// 	 	g.Update();
+// 	}
 	return 0;
 }
