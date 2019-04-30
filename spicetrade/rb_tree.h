@@ -417,19 +417,19 @@ class RBT {
 	static int remove_with_cb (RBT* self, void* value, node_f node_cb) {
 		if (self->root != NULL) {
 			Node head;                     // False tree root... why is this not a **?
-			Node *cursor, *p, *g;               // Helpers
+			Node *cursor, *parent, *g;               // Helpers
 			Node* foundn = NULL;           // Found item
 			Node **ptrToF = NULL, **ptrToQ = NULL;
 			int dir = 1;
 			// Set up our helpers
 			cursor = &head;
-			g = p = NULL;
+			g = parent = NULL;
 			cursor->setlink (1, self->root);
 			// Search and push a red node down to fix red violations as we go
 			while (cursor->link (dir) != NULL) {
 				int last = dir;
 				// Move the helpers down
-				g = p, p = cursor;
+				g = parent, parent = cursor;
 				ptrToQ = &(cursor->_link[dir]);//&Node::_getRawLink(q, dir);
 				cursor = cursor->_link[dir];
 				if(*ptrToQ != cursor){ printf("uh oh %016zx != %016zx\n", (size_t)cursor, (size_t)(*ptrToQ)); int i=0;i=1/i;}
@@ -442,22 +442,22 @@ class RBT {
 				if (!rb_node_is_red (cursor) && !rb_node_is_red (cursor->link (dir))) {
 					if (rb_node_is_red (cursor->link (!dir))) {
 						Node* n = rb_node_rotate (cursor, dir);
-						p->setlink (last, n);
-						p = n;
+						parent->setlink (last, n);
+						parent = n;
 					} else if (!rb_node_is_red (cursor->link (!dir))) {
-						Node* s = p->link (!last);
+						Node* s = parent->link (!last);
 						if (s) {
 							if (!rb_node_is_red (s->link (!last)) && !rb_node_is_red (s->link (last))) {
 								// Color flip
-								p->setRed (0);
+								parent->setRed (0);
 								s->setRed (1);
 								cursor->setRed (1);
 							} else {
-								int dir2 = g->link (1) == p;
+								int dir2 = g->link (1) == parent;
 								if (rb_node_is_red (s->link (last))) {
-									g->setlink (dir2, rb_node_rotate2 (p, last));
+									g->setlink (dir2, rb_node_rotate2 (parent, last));
 								} else if (rb_node_is_red (s->link (!last))) {
-									g->setlink (dir2, rb_node_rotate (p, last));
+									g->setlink (dir2, rb_node_rotate (parent, last));
 								}
 								// Ensure correct coloring
 								cursor->setRed (1);
@@ -481,26 +481,27 @@ class RBT {
 					printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q0 %d\n", cursor->isRed());
 					printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f0 %d\n", foundn->isRed());
 
-					// swapNodes(ptrToF, ptrToQ); printf("~~~swapped~~~\n");
-					// printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q1 %d\n", cursor->isRed());
-					// printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f1 %d\n", foundn->isRed());
-					// swapNodes(ptrToF, ptrToQ); printf("~~~swapped back~~~\n");
-					// printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q2 %d\n", cursor->isRed());
-					// printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f2 %d\n", foundn->isRed());
+					swapNodes(ptrToF, ptrToQ); printf("~~~swapped~~~\n");
+					printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q1 %d\n", cursor->isRed());
+					printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f1 %d\n", foundn->isRed());
+					self->printTree();
+					swapNodes(ptrToF, ptrToQ); printf("~~~swapped back~~~\n");
+					printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q2 %d\n", cursor->isRed());
+					printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f2 %d\n", foundn->isRed());
+					self->printTree();
 
 					void* tmp = Node::getValue (foundn);         //f->value;
 					Node::setValue (foundn, Node::getValue (cursor)); //f->value = q->value;
 					Node::setValue (cursor, tmp);                //q->value = tmp;
 
-					p->setlink (p->link (1) == cursor, cursor->link (cursor->link (0) == NULL));
+					parent->setlink (parent->link (1) == cursor, cursor->link (cursor->link (0) == NULL));
 					if (node_cb) {
 						node_cb (self, cursor);
 					}
 
-					// swapNodes(ptrToF, ptrToQ);
-					// p->setlink (p->link (1) == f, f->link (f->link (0) == NULL));
+					// parent->setlink (parent->link (1) == foundn, foundn->link (foundn->link (0) == NULL));
 					// if (node_cb) {
-					// 	node_cb (self, f);
+					// 	node_cb (self, foundn);
 					// }
 
 					cursor = NULL;
@@ -534,20 +535,24 @@ class RBT {
 		}
 	}
 
-	static void swapNodes(Node** ptrToA, Node** ptrToB) {
+	static void swapNodes(Node** &ptrToA, Node** &ptrToB) {
 		Node *a = *ptrToA, *b = *ptrToB;
-		// Node::setlink(*ptrToA, b);
-		// Node::setlink(*ptrToB, a);
+		Node::setlink(*ptrToA, b);
+		Node::setlink(*ptrToB, a);
 		Node* temp;
 		for(int i = 0; i < 2; ++i) {
 			temp = a->link(i); a->setlink(i, b->link(i)); b->setlink(i, temp);
+			// deal with parent/child left/right swaps
+			if(a->link(i) == a) { a->setlink(i, b); }
+			if(b->link(i) == b) { b->setlink(i, a); }
 		}
 		int t;
-		t    = a->isRed(); a->setRed(    b->isRed()); b->setRed(    t   );
-
-		if(true || *ptrToA != b) { Node::setlink(*ptrToA, b); }
-		if(true || *ptrToB != a) { Node::setlink(*ptrToB, a); }
-
+		t = a->isRed(); a->setRed(b->isRed()); b->setRed(t);
+		for(int i = 0; i < 2; ++i) {
+			// deal with parent/child left/right swaps
+			if(ptrToA == &(b->_link[i])) { ptrToA = &(a->_link[i]); }
+			if(ptrToB == &(a->_link[i])) { ptrToB = &(b->_link[i]); }
+		}
 	}
 
   private:
