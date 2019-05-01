@@ -52,8 +52,8 @@
 //   achievements
 //   _handPredicted
 //   _inventoryPredicted
-#include <iostream>
 
+#ifdef testing
 void printRBT(RBT* tree) {
 	auto iter = tree->createIter ();
 	int i = 0, count = tree->size();
@@ -83,17 +83,20 @@ int main (int argc, const char** argv) {
 		printRBT(rbt);
 		rbt->remove((void*)(size_t)list[i]);
 	}
-
-// 	int numPlayers=2;
-// 	// std::cout << "How many players? ";
-// 	// std::cin >> numPlayers;
-// 	Game g;
-// 	g.Init(numPlayers);
-// //	MEM::REPORT_MEMORY();
-// 	while (g.IsRunning()) {
-// 		g.Draw();
-// 	 	g.RefreshInput();
-// 	 	g.Update();
-// 	}
+#else
+#include <iostream>
+int main (int argc, const char** argv) {
+	int numPlayers=2;
+	// std::cout << "How many players? ";
+	// std::cin >> numPlayers;
+	Game g;
+	g.Init(numPlayers);
+//	MEM::REPORT_MEMORY();
+	while (g.IsRunning()) {
+		g.Draw();
+	 	g.RefreshInput();
+	 	g.Update();
+	}
+#endif
 	return 0;
 }
