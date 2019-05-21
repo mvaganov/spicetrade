@@ -29,7 +29,7 @@
 //x [rest action] - put played cards back into hand
 
 // TODO re-implement predictions
-// TODO re-implement double-buffering to prevent flickering
+// x re-implement double-buffering to prevent flickering
 // TODO fix upgrade UI during predictions
 // TODO list actions that have happened in a history list:
 //   - card played (including pre and post resources)
@@ -65,35 +65,62 @@ void printRBT(RBT* tree) {
 	iter->dealloc ();
 }
 
+int originalSeed = 
+	//5831 //134217727
+	//22   //67108863
+	//2    //67108863
+	//5    //134217727
+	//17   //134217727
+	//63   //134217727
+	//709  //134217727
+	52711;
+int seed = originalSeed;
+int rand() {
+	seed *= 5831;
+	return seed;
+}
+#include <vector>
 int main (int argc, const char** argv) {
-	RBT* rbt = RBT::create(NULL);
-	VList<int> list;
-	printf("   ");
-	for(int i = 0; i < 20; ++i) {
-		int n = platform_random() % 100;
-		list.Add(n);
-		rbt->insert((void*)(size_t)n);
-		printf("%3zi", (size_t)n);
-	}
-	printf("\n");
+	// for(int i = 0; i < (1<<30); ++i) {
+	// 	int n = rand();
+	// 	if(n == originalSeed) {
+	// 		printf("periodocity at %d     %d\n",i,seed);
+	// 		break;
+	// 	}
+	// 	if(i% (1<<20) == 0){
+	// 		printf("%d  %d\n", i,seed);
+	// 	}
+	// }
+	// platform_getch();
 
-	for(int i = 0; i < list.Count(); ++i) {
-		//rbt->printTree();
-		printf("%i", list[i]);
-		printRBT(rbt);
-		rbt->remove((void*)(size_t)list[i]);
-	}
+	// RBT* rbt = RBT::create(NULL);
+	// VList<int> list;
+	// printf("   ");
+	// for(int i = 0; i < 20; ++i) {
+	// 	int n = platform_random() % 100;
+	// 	list.Add(n);
+	// 	rbt->insert((void*)(size_t)n);
+	// 	printf("%3zi", (size_t)n);
+	// }
+	// printf("\n");
 
-// 	int numPlayers=2;
-// 	// std::cout << "How many players? ";
-// 	// std::cin >> numPlayers;
-// 	Game g;
-// 	g.Init(numPlayers);
-// //	MEM::REPORT_MEMORY();
-// 	while (g.IsRunning()) {
-// 		g.Draw();
-// 	 	g.RefreshInput();
-// 	 	g.Update();
-// 	}
+	// for(int i = 0; i < list.Count(); ++i) {
+	// 	//rbt->printTree();
+	// 	printf("%i", list[i]);
+	// 	printRBT(rbt);
+	// 	rbt->remove((void*)(size_t)list[i]);
+	// }
+
+	int numPlayers=2;
+	// std::cout << "How many players? ";
+	// std::cin >> numPlayers;
+	Game g;
+	g.Init(numPlayers);
+//	MEM::REPORT_MEMORY();
+	while (g.IsRunning()) {
+		g.Draw();
+		g.RefreshInput();
+		g.Update();
+	}
 	return 0;
 }

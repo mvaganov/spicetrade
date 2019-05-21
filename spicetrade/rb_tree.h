@@ -441,9 +441,27 @@ class RBT {
 				// Push the red node down with rotations and color flips
 				if (!rb_node_is_red (cursor) && !rb_node_is_red (cursor->link (dir))) {
 					if (rb_node_is_red (cursor->link (!dir))) {
+						printf("&&&&&&&&&&&&&&&&&&&& rotate1\n");
+						if(*ptrToQ == cursor) {
+							printf("######I SHOULD SEE THIS A COUPLE TIMES###################\n");
+						}
+						bool updatePtrToF = (foundn == *ptrToQ);
+						if(foundn == *ptrToQ) {
+							printf("found IS the cursor. need to update both.\n");
+						}
 						Node* n = rb_node_rotate (cursor, dir);
+						if(ptrToQ != &(n->_link[dir])) {
+							printf("~~~~~~~parent pointer upset. fixing...\n");
+							ptrToQ = &(n->_link[dir]);
+							if(*ptrToQ != cursor) {
+								printf("oooooooohkay, I was wrong about that...\n");
+							}
+						}
 						parent->setlink (last, n);
 						parent = n;
+						if(updatePtrToF) {
+							ptrToF = ptrToQ;
+						}
 					} else if (!rb_node_is_red (cursor->link (!dir))) {
 						Node* s = parent->link (!last);
 						if (s) {
@@ -454,10 +472,27 @@ class RBT {
 								cursor->setRed (1);
 							} else {
 								int dir2 = g->link (1) == parent;
+								bool adjustFound = (parent == *ptrToF);
+								bool adjustCursor = (parent == *ptrToQ);
 								if (rb_node_is_red (s->link (last))) {
+									printf("&&&&&&&&&&&&&&&&&&&& rotate2\n");
 									g->setlink (dir2, rb_node_rotate2 (parent, last));
 								} else if (rb_node_is_red (s->link (!last))) {
+									printf("&&&&&&&&&&&&&&&&&&&& rotate3\n");
 									g->setlink (dir2, rb_node_rotate (parent, last));
+								}
+								if(adjustFound) {
+									printf("#############found parent pointer upset. fixing...###############\n");
+									ptrToF = &(g->link(dir2)->_link[last]);
+								} else if(adjustCursor) {
+									printf("#############cursor parent pointer upset. fixing...###############\n");
+									ptrToQ = &(g->link(dir2)->_link[last]);
+								}
+								if(*ptrToF != foundn) {
+									printf("~~~~~~~~~~~~~~~~foundn sad times\n");
+								}
+								if(*ptrToQ != cursor) {
+									printf("~~~~~~~~~~~~~~~~cursor sad times\n");
 								}
 								// Ensure correct coloring
 								cursor->setRed (1);
@@ -475,6 +510,13 @@ class RBT {
 				// 	printf("no need to swap with itself\n");
 				// }
 				// else {
+					if(*ptrToF != foundn) {
+						printf("@@@@@@@@@@@@@@@ lost ptr to Found @@@@@@@@@@@\n");
+					}
+					if(*ptrToQ != cursor) {
+						printf("@@@@@@@@@@@@@@@ lost ptr to Cursor @@@@@@@@@@@\n");
+					}
+
 					int buffer[64];
 					int position = 0;
 					self->printTree();
@@ -485,18 +527,37 @@ class RBT {
 					printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q1 %d\n", cursor->isRed());
 					printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f1 %d\n", foundn->isRed());
 					self->printTree();
+					// if the wrong swap happened, swap them back.
+					bool swapfix = false; // weird bugfix... should really find out why.
+					if(*ptrToF == cursor && *ptrToQ == foundn) { Node** temp = ptrToF; ptrToF = ptrToQ; ptrToQ = temp; swapfix = true; }
+					if(*ptrToF != foundn) {
+						printf("+++++++++++++++ lost ptr to Found +++++++++++++++ %zd != %zd\n", (size_t)((*ptrToF)->value), (size_t)(foundn->value));
+					}
+					if(*ptrToQ != cursor) {
+						printf("+++++++++++++++ lost ptr to Cursor +++++++++++++++ %zd != %zd\n", (size_t)((*ptrToQ)->value), (size_t)(cursor->value));
+					}
+					if(swapfix) { Node** temp = ptrToF; ptrToF = ptrToQ; ptrToQ = temp; }
+
 					swapNodes(ptrToF, ptrToQ); printf("~~~swapped back~~~\n");
 					printNodesPointingAt(self->root, cursor, buffer, position); printf("<-q2 %d\n", cursor->isRed());
 					printNodesPointingAt(self->root, foundn, buffer, position); printf("<-f2 %d\n", foundn->isRed());
 					self->printTree();
 
-					void* tmp = Node::getValue (foundn);         //f->value;
-					Node::setValue (foundn, Node::getValue (cursor)); //f->value = q->value;
-					Node::setValue (cursor, tmp);                //q->value = tmp;
+					void* tmp = Node::getValue (*ptrToF);               //f->value;
+					Node::setValue (*ptrToF, Node::getValue (*ptrToQ)); //f->value = q->value;
+					Node::setValue (*ptrToQ, tmp);                    //q->value = tmp;
+					
+					// void* tmp = Node::getValue (foundn);               //f->value;
+					// Node::setValue (foundn, Node::getValue (cursor)); //f->value = q->value;
+					// Node::setValue (cursor, tmp);                    //q->value = tmp;
 
-					parent->setlink (parent->link (1) == cursor, cursor->link (cursor->link (0) == NULL));
+					// parent->setlink (parent->link (1) == cursor, cursor->link (cursor->link (0) == NULL));
+					parent->setlink (parent->link (1) == *ptrToQ, (*ptrToQ)->link ((*ptrToQ)->link (0) == NULL));
+					// if (node_cb) {
+					// 	node_cb (self, cursor);
+					// }
 					if (node_cb) {
-						node_cb (self, cursor);
+						node_cb (self, *ptrToQ);
 					}
 
 					// parent->setlink (parent->link (1) == foundn, foundn->link (foundn->link (0) == NULL));
@@ -682,7 +743,7 @@ class RBT {
 			for(int i = 0; i < leadSpace; ++i) { putchar(' '); }
 			for(int n = 0; n < inRow; ++n) {
 				if(pyramidBuffer[index].value != defaultValue) {
-					printf("%02d%c", pyramidBuffer[index].value, (pyramidBuffer[index].isRed?'R':' '));
+					printf("%02d%c", (int)(size_t)(pyramidBuffer[index].value), (pyramidBuffer[index].isRed?'R':' '));
 				}
 				else {
 					printf("...");
