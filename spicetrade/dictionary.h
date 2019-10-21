@@ -82,7 +82,7 @@ class Dictionary {
 	VAL Get (const KEY& key) const {
 		KVP search (key, 0);
 		struct KVP* f = (KVP*)tree->find (&search);
-		return (f != NULL) ? f->value : NULL;
+		return (f != NULL) ? (VAL)f->value : (VAL)NULL;
 	}
 	/** this works if KEY is not a pointer */
 	VAL* GetPtr (const KEY& key) const {

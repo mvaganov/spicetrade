@@ -37,21 +37,22 @@ inline long platform_getch () {
 	return platform_getchar ();
 }
 
+#include <stdio.h>
+// fills a rectangle in the console with the given character
+inline void platform_fillRect(int row, int col, int width, int height, char character)
+{
+	for(int y = row; y < row+height; y++) {
+		platform_move(y, col);
+		for(int x = col; x < col+width; x++) {
+			putchar((unsigned)character);
+		}
+	}
+}
+
 /*
 // example console application using this library:
 #include "platform_conio.h"
 #include <string.h>         // for strlen
-
-/// fills a rectangle in the console with the given character
-void fillRect(int row, int col, int width, int height, char character)
-{
-  for(int y = row; y < row+height; y++) {
-    platform_move(y, col);
-    for(int x = col; x < col+width; x++) {
-      putchar(character);
-    }
-  }
-}
 
 int main(int argc, char * argv[])
 {
@@ -90,7 +91,7 @@ int main(int argc, char * argv[])
   } while (userInput != 'a');
   // prep to make the console look more usable after the program is done
   platform_setColor(-1, -1);    // reset colors to original
-  fillRect(0, 0, 80, 10, ' ');  // clear the top 10 lines (80 columns per line)
+  platform_fillRect(0, 0, 80, 10, ' ');  // clear the top 10 lines (80 columns per line)
   platform_move(0,0);           // move the cursor back to back to the start
   return 0;
 }
