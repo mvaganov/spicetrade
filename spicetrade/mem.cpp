@@ -600,7 +600,11 @@ struct MemManager {
 		do {
 			MemBlock* block = current->firstBlock();
 			MemBlock* endOfThisPage = (MemBlock*)endOfPage(current);
+			#ifdef ENVIRONMENT64
+			printf("page %d [0x%016lx -> 0x%016lx) (%lu bytes)\n", pages, (long long)current, (long long)endOfThisPage, ((size_t)endOfThisPage-(size_t)current));
+			#elif ENVIRONMENT32
 			printf("page %d [0x%08lx -> 0x%08lx) (%lu bytes)\n", pages, (long)current, (long)endOfThisPage, ((size_t)endOfThisPage-(size_t)current));
+			#endif
 			do {
 				reportBlock(block, verbose, usedSectors, usedBytes, freeSectors, freeBytes);
 				block = block->nextContiguousBlock();
