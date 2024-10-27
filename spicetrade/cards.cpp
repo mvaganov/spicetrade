@@ -14,16 +14,16 @@
 // ### requires large-scale collection, far beyond the limits of one person or a small group
 // #### requires collection at a large community scale
 // ##### requires resources from a giving from a society
-// @ requires a specialized tool for a job
-// @@ requires an expert tool
-// @@@ requires an extremely precise and high-quality tool
-// @@@@ requires specialized hard-to-develop tools, customized for a specific task
-// @@@@@ requires epic tool, whose existance redefines what is possible (internet, transistor, telephone, factories, steam engine, )
 // & requires work of one person working dilligently
 // && requires work of a small group of people, some maintenance expected
 // &&& requires work of a large group of people, with hierarchy implied in the scale
 // &&&& requires work of a community, which must have a self-perpetuating culture
 // &&&&& requires collective will of society changing itself
+// @ requires a specialized tool for a job
+// @@ requires an expert tool
+// @@@ requires an extremely precise and high-quality tool (accurate measuring devices)
+// @@@@ requires specialized hard-to-develop tools, which are created by other precise tools (engines, microscopes, )
+// @@@@@ requires epic tool, whose existance redefines what is possible (internet, transistor, telephone, factories, novel engines, )
 // % requires special knowledge or research
 // %% requires more knowledge or research than a single person could posess
 // %%% requires more knowledge and deep expertise than a small group could manage
@@ -31,40 +31,40 @@
 // %%%%% requires epic knowledge: redefines the limits of what we think is possible, and by being known, changes society (information technology, radio waves, electricity, chemistry, physics, mass production, the scientific method)
 const Objective objective[] = {
 	Objective("##&&",  6,  "meeting space"),
-	Objective("###&&", 7,  "common supplies"),
-	Objective("&&&&",  8,  "company meeting"),
+	Objective("###&&", 7,  "sharing common supplies"),
+	Objective("&&&&",  8,  "grand community meeting"),
 	Objective("##@@",  8,  "work tools"),
 	Objective("##&&&", 8,  "social time"),
-	Objective("###@@", 9,  "nice tools"),
+	Objective("###@@", 9,  "easy access to good tools"),
 	Objective("&&@@",  10, "public assistance"),
 	Objective("&&&&&", 10, "direct community engagement in governance"),
 	Objective("##%%",  10, "economic exchange"),
 	Objective("##@@@", 11, "public resources"),
 	Objective("###%%", 11, "commodoties exchange"),
-	Objective("@@@@",  12, ""),
+	Objective("@@@@",  12, "scientific breakthrough"),
 	Objective("&&%%",  12, "training"),
 	Objective("&&&@@", 12, "infrastructure"),
 	Objective("&&@@@", 13, "heavy infrastructure"),
 	Objective("@@%%",  14, "free press"),
-	Objective("&&&%%", 14, "group training"),
-	Objective("##%%%", 14, ""),
+	Objective("&&&%%", 14, "educating the masses"),
+	Objective("##%%%", 14, "pop culture entertainment"),
 	Objective("@@@@@", 15, "epic monument"),
 	Objective("%%%%",  16, "technical education"),
 	Objective("&&%%%", 16, "elite education"),
-	Objective("@@@%%", 17, ""),
-	Objective("@@%%%", 18, ""),
+	Objective("@@@%%", 17, "high tech manufacturing"),
+	Objective("@@%%%", 18, "propaganda machine"),
 	Objective("%%%%%", 20, "high technology"),
-	Objective("##&%",  9,  ""),
-	Objective("&&@%",  12, ""),
-	Objective("#@@%",  12, ""),
-	Objective("##&&@@",13, ""),
-	Objective("##&&%%",15, ""),
-	Objective("##@@%%",17, ""),
-	Objective("&&@@%%",19, ""),
-	Objective("#&@%",  12, ""),
+	Objective("##&%",  9,  "grocery store"),
+	Objective("&&@%",  12, "open source software"),
+	Objective("#@@%",  12, "common infrastructure"),
+	Objective("##&&@@",13, "professional industry"),
+	Objective("##&&%%",15, "professional governance"),
+	Objective("##@@%%",17, "social safety net"),
+	Objective("&&@@%%",19, "hacker space"),
+	Objective("#&@%",  12, "entrepreneurship"),
 	Objective("###&@%",14, "public safety-net"),
 	Objective("#&&&@%",16, "public works program"),
-	Objective("#&@@@%",18, "public access to manufacturing"),
+	Objective("#&@@@%",18, "democratized manufacturing"),
 	Objective("#&@%%%",20, "public access to technology")
 };
 const PlayAction playstart[] = {
@@ -89,7 +89,7 @@ const PlayAction play_deck[] = {
 	PlayAction("",     "&##",   "inspire/intimidate/beg"),
 	PlayAction("",     "####",  "inherit/acquire/steal"),
 	PlayAction("",     "%",     "innovate"),
-	PlayAction("",     "&&",    "leadership"),
+	PlayAction("",     "&&",    "inspiring leadership"),
 	PlayAction("",     "#@",    "trade-favors/borrow"),
 	PlayAction("##",   "@",     "craft"),
 	PlayAction("&#",   "%",     "utilize expertise"),
